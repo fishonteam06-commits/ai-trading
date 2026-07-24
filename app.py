@@ -24,6 +24,8 @@ from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
 from predictor import predict_next_candle
+from strategies import run_all_strategies
+import wisdom
 import auth
 from scanner import scan
 from backtest import run_backtest
@@ -154,8 +156,9 @@ sound_on = st.sidebar.checkbox("🔔 Strong signal par beep bajayein", value=Tru
 st.title("📈 AI Trading Assistant")
 st.caption("Sirf education ke liye — yeh tool trades khud nahi karta aur financial advice nahi deta.")
 
-tab_guide, tab_dash, tab_scan, tab_bt, tab_risk, tab_paper = st.tabs(
-    ["📚 Seekhein", "📊 Dashboard", "🔍 Scanner", "🧪 Backtest", "🛡️ Risk Calculator", "📝 Paper Trade"]
+tab_guide, tab_dash, tab_strat, tab_scan, tab_bt, tab_risk, tab_paper = st.tabs(
+    ["📚 Seekhein", "📊 Dashboard", "🎓 Strategies", "🔍 Scanner", "🧪 Backtest",
+     "🛡️ Risk Calculator", "📝 Paper Trade"]
 )
 
 # ================================================================== TAB 0: GUIDE
@@ -265,6 +268,27 @@ with tab_dash:
         else:
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["Close"], name="Price",
                                      line=dict(color="#2ecc71", width=2)), row=1, col=1)
+
+        # -- Prediction ARROW candle ke upar (agli candle ka rukh) --
+        if pred["direction"] in ("BUY", "SELL"):
+            last_x = plot_df.index[-1]
+            hi = float(plot_df["High"].iloc[-1])
+            if pred["direction"] == "BUY":
+                fig.add_annotation(
+                    x=last_x, y=hi, row=1, col=1,
+                    text=f"▲ BUY {pred['prob_up']}%",
+                    showarrow=True, arrowhead=2, arrowsize=1.6, arrowwidth=2.5,
+                    arrowcolor="#2ecc71", ax=0, ay=-45,
+                    font=dict(color="#2ecc71", size=13),
+                    bgcolor="rgba(0,0,0,0.55)", bordercolor="#2ecc71", borderwidth=1)
+            else:
+                fig.add_annotation(
+                    x=last_x, y=hi, row=1, col=1,
+                    text=f"▼ SELL {pred['prob_down']}%",
+                    showarrow=True, arrowhead=2, arrowsize=1.6, arrowwidth=2.5,
+                    arrowcolor="#e74c3c", ax=0, ay=-45,
+                    font=dict(color="#e74c3c", size=13),
+                    bgcolor="rgba(0,0,0,0.55)", bordercolor="#e74c3c", borderwidth=1)
 
         # -- overlays on price --
         overlays = []
@@ -393,6 +417,41 @@ with tab_dash:
             df_ai = add_all_indicators(get_data(market, symbol, interval, limit=200))
             sig_ai = generate_signal(df_ai)
             st.info(ai_analysis.analyze(ai_provider, market, symbol, sig_ai, api_key))
+
+# ================================================================== TAB: STRATEGIES
+with tab_strat:
+    st.subheader("🎓 Pro Strategies + Confluence")
+    st.write("Duniya ke mashhoor traders/books ki proven strategies — sab ek saath "
+             f"**{symbol}** par. Jab zyada strategies ek taraf aa jayein, signal utna strong.")
+    if st.button("⚡ Saari strategies chalayein", type="primary"):
+        try:
+            with st.spinner("Strategies analyze ho rahi hain..."):
+                df_st = add_all_indicators(get_data(market, symbol, interval, limit=200))
+                res = run_all_strategies(df_st)
+        except Exception as e:
+            st.error(f"Masla: {e}")
+            res = None
+        if res:
+            cons = res["consensus"]
+            if cons == "BUY":
+                st.success(f"🟢 CONFLUENCE: BUY — {res['buys']}/{res['total']} strategies "
+                           "upar keh rahi hain. Yeh zyada bharosemand hai.")
+            elif cons == "SELL":
+                st.error(f"🔴 CONFLUENCE: SELL — {res['sells']}/{res['total']} strategies "
+                         "neeche keh rahi hain. Yeh zyada bharosemand hai.")
+            else:
+                st.warning(f"🟡 MIXED — strategies aapas mein ikhtelaaf kar rahi hain "
+                           f"({res['buys']} buy / {res['sells']} sell). Ehtiyaat karein / wait.")
+            rows = []
+            for r in res["results"]:
+                emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(r["signal"], "⚪")
+                rows.append({"Strategy": r["name"], "Signal": f"{emoji} {r['signal']}",
+                             "Source": r["source"], "Wajah": r["note"]})
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.caption("⚠️ Koi strategy hamesha nahi jeetti. Risk management sab se zaroori hai.")
+
+    st.markdown("---")
+    wisdom.render()
 
 # ================================================================== TAB 2: SCANNER
 with tab_scan:
