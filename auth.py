@@ -1,16 +1,16 @@
 """
 auth.py  —  Security layer (login gate) with COOKIE persistence
 ================================================================
-Password gate jo login ko ek cookie mein yaad rakhta hai — taake reload par
-ya mobile par app dobara kholne par bar bar login na maange.
+A password gate that remembers the login in a cookie — so it doesn't ask for
+a login again on every reload or when the app is reopened on mobile.
 
-Tareeka (robust, koi extra library nahi):
-  - Cookie PADHNA  : Streamlit ka built-in `st.context.cookies` (foran, no rerun)
-  - Cookie LIKHNA  : chhoti JavaScript (document.cookie) — login ke waqt
+Approach (robust, no extra library):
+  - Reading the cookie : Streamlit's built-in `st.context.cookies` (instant, no rerun)
+  - Writing the cookie : a small piece of JavaScript (document.cookie) at login time
 
-Password kahan set hota hai (code mein KABHI nahi):
-  - Local test : .streamlit/secrets.toml  ->  app_password = "yourpassword"
-  - Streamlit Cloud : app ke Settings -> Secrets  mein wahi line daalein
+Where the password is set (NEVER in the code):
+  - Local testing : .streamlit/secrets.toml  ->  app_password = "yourpassword"
+  - Streamlit Cloud : add the same line under the app's Settings -> Secrets
 """
 
 import hashlib
@@ -37,7 +37,7 @@ def _configured() -> bool:
 
 
 def _expected_token() -> str:
-    """Cookie mein rakha jaane wala token — password ka non-reversible hash."""
+    """The token stored in the cookie — a non-reversible hash of the password."""
     hashed = _get_secret("app_password_hash")
     if not hashed:
         plain = _get_secret("app_password")
@@ -57,7 +57,7 @@ def _password_ok(entered: str) -> bool:
 
 
 def _read_cookie() -> str | None:
-    """Browser se cookie padho (Streamlit built-in — foran, no rerun)."""
+    """Read the cookie from the browser (Streamlit built-in — instant, no rerun)."""
     try:
         return st.context.cookies.get(COOKIE_NAME)
     except Exception:
@@ -65,7 +65,7 @@ def _read_cookie() -> str | None:
 
 
 def _write_cookie(token: str) -> None:
-    """Cookie set karo (parent page par) — 30 din ke liye."""
+    """Set the cookie (on the parent page) — for 30 days."""
     max_age = COOKIE_DAYS * 24 * 60 * 60
     components.html(
         f"""
@@ -98,18 +98,18 @@ def _clear_cookie() -> None:
 
 
 def require_login() -> None:
-    """App ke shuru mein call karein. Login cookie mein yaad rehta hai."""
-    # Password set hi nahi (local dev) -> gate off, halki warning.
+    """Call this at the start of the app. The login is remembered in a cookie."""
+    # No password set at all (local dev) -> gate off, with a light warning.
     if not _configured():
         st.session_state["authed"] = True
         st.session_state["_no_pw_warning"] = True
         return
 
-    # Is session mein pehle se authed? To seedha aage.
+    # Already authed in this session? Then go straight through.
     if st.session_state.get("authed"):
         return
 
-    # Cookie check — valid token mila to bina login ke andar.
+    # Cookie check — if a valid token is found, come in without logging in.
     token = _read_cookie()
     if token and hmac.compare_digest(str(token), _expected_token()):
         st.session_state["authed"] = True
@@ -117,10 +117,10 @@ def require_login() -> None:
 
     # ---- Login form ----
     st.markdown("## 🔒 AI Trading Assistant — Login")
-    st.caption("Yeh app private hai. Ek dafa login karein — phir yaad rahega.")
+    st.caption("This app is private. Log in once — it will then be remembered.")
     with st.form("login_form"):
         pw = st.text_input("Password", type="password")
-        remember = st.checkbox("Is device par yaad rakhein (login na maange)", value=True)
+        remember = st.checkbox("Remember me on this device (don't ask to log in)", value=True)
         ok = st.form_submit_button("🔓 Login", type="primary")
 
     if ok:
@@ -129,24 +129,24 @@ def require_login() -> None:
             st.session_state["login_attempts"] = 0
             if remember:
                 _write_cookie(_expected_token())
-                # cookie browser mein set hone ke liye ek lamha
-                st.success("Login kamyab! Load ho raha hai...")
+                # give the cookie a moment to be set in the browser
+                st.success("Login successful! Loading...")
                 time.sleep(0.6)
             st.rerun()
         else:
             attempts = st.session_state.get("login_attempts", 0) + 1
             st.session_state["login_attempts"] = attempts
             if attempts >= 3:
-                st.error("Bar bar ghalat password. Thora intezaar karein.")
+                st.error("Too many incorrect passwords. Please wait a moment.")
                 time.sleep(min(attempts, 8))
             else:
-                st.error("Ghalat password. Dobara koshish karein.")
+                st.error("Incorrect password. Please try again.")
 
     st.stop()
 
 
 def logout_button() -> None:
-    """Sidebar mein logout button (login on hone par)."""
+    """Logout button in the sidebar (shown when logged in)."""
     if st.session_state.get("authed") and _configured():
         if st.sidebar.button("🔒 Logout"):
             _clear_cookie()
@@ -156,5 +156,5 @@ def logout_button() -> None:
 
 
 def hash_password(plain: str) -> str:
-    """Helper: password ka SHA-256 hash (secrets mein daalne ke liye)."""
+    """Helper: SHA-256 hash of the password (for putting into secrets)."""
     return hashlib.sha256(plain.encode()).hexdigest()

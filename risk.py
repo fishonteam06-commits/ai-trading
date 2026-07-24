@@ -1,28 +1,29 @@
 """
 risk.py
 --------
-Risk management — trading mein paisa bachane ki SABSE zaroori cheez.
+Risk management — the single most important thing for protecting your money
+in trading.
 
-Asal baat: profit se zyada important 'nuksan ko control' karna hai.
-Pro traders ek trade par apni total capital ka sirf 1-2% risk karte hain.
-Yeh module wahi hisaab lagata hai: kitna lagana hai, stop-loss/take-profit kahan.
+The core idea: controlling losses matters more than chasing profit. Pro traders
+risk only 1-2% of their total capital on a single trade. This module does exactly
+that calculation: how much to put in, and where the stop-loss/take-profit go.
 """
 
 
 def position_size(capital: float, risk_percent: float, entry: float, stop_loss: float) -> dict:
     """
-    Batata hai ke ek trade mein kitni units khareedni chahiye taake
-    agar stop-loss lage to sirf 'risk_percent' hi doobe.
+    Tells you how many units to buy in a trade so that if the stop-loss is hit,
+    only 'risk_percent' of your capital is lost.
 
-    capital      = aapki total raqam (jaise 1000 USD)
-    risk_percent = ek trade par kitna % risk (jaise 1 ya 2)
-    entry        = khareedne ka price
-    stop_loss    = jahan nikal jayenge agar galat hua
+    capital      = your total amount (e.g. 1000 USD)
+    risk_percent = how much % to risk on one trade (e.g. 1 or 2)
+    entry        = the buy price
+    stop_loss    = where you exit if the trade goes wrong
     """
-    risk_amount = capital * (risk_percent / 100.0)      # kitne paise risk par
-    per_unit_risk = abs(entry - stop_loss)              # per unit kitna nuksan
+    risk_amount = capital * (risk_percent / 100.0)      # how much money is at risk
+    per_unit_risk = abs(entry - stop_loss)              # loss per unit
     if per_unit_risk <= 0:
-        return {"error": "Stop-loss entry ke barabar nahi ho sakta."}
+        return {"error": "Stop-loss cannot be equal to the entry."}
 
     units = risk_amount / per_unit_risk
     position_value = units * entry
@@ -37,16 +38,16 @@ def position_size(capital: float, risk_percent: float, entry: float, stop_loss: 
 def suggest_levels(entry: float, atr_value: float, direction: str = "BUY",
                    atr_mult_sl: float = 1.5, rr_ratio: float = 2.0) -> dict:
     """
-    ATR (volatility) ki bunyaad par stop-loss aur take-profit suggest karta hai.
+    Suggests a stop-loss and take-profit based on ATR (volatility).
 
-    direction  = 'BUY' (long) ya 'SELL' (short)
-    atr_mult_sl= stop-loss kitne ATR door ho (default 1.5x)
-    rr_ratio   = reward:risk ratio (2.0 matlab profit target = 2x risk)
+    direction  = 'BUY' (long) or 'SELL' (short)
+    atr_mult_sl= how many ATR the stop-loss sits away (default 1.5x)
+    rr_ratio   = reward:risk ratio (2.0 means profit target = 2x risk)
 
-    ** Yeh sirf ek educational reference hai, guarantee nahi. **
+    ** This is only an educational reference, not a guarantee. **
     """
     if not atr_value or atr_value <= 0:
-        return {"error": "ATR available nahi — level suggest nahi kar sakte."}
+        return {"error": "ATR not available — cannot suggest levels."}
 
     risk_dist = atr_value * atr_mult_sl
     reward_dist = risk_dist * rr_ratio

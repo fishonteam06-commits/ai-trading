@@ -1,12 +1,12 @@
 """
 backtest.py
 ------------
-Simple backtest — "agar main yeh signal pichle kuch mahine follow karta to
-kya hota?" Yeh strategy ko history par test karta hai.
+Simple backtest — "if I had followed this signal over the past few months,
+what would have happened?" It tests the strategy against history.
 
-** ZAROORI **: Past results future ki guarantee NAHI. Yeh sirf yeh samajhne
-ke liye hai ke signal andha-dhund reliable nahi — har strategy kabhi galat
-bhi hoti hai. Isi liye risk management zaroori hai.
+** IMPORTANT **: Past results are NOT a guarantee of the future. This is only
+to understand that a signal is not blindly reliable — every strategy is
+sometimes wrong. That is exactly why risk management matters.
 """
 
 import pandas as pd
@@ -17,10 +17,10 @@ from signals import generate_signal
 
 def run_backtest(df: pd.DataFrame, start_capital: float = 1000.0) -> dict:
     """
-    Har candle par signal nikaal kar ek simple long-only strategy chalata hai:
-      - BUY signal aur position nahi -> poori capital se khareed lo
-      - SELL signal aur position hai -> bech do
-    Fees/slippage ignore (yeh sirf educational estimate hai).
+    Derives a signal at each candle and runs a simple long-only strategy:
+      - BUY signal and no position -> buy with the full capital
+      - SELL signal and holding a position -> sell
+    Fees/slippage are ignored (this is only an educational estimate).
     """
     df = df.copy()
     capital = start_capital
@@ -30,7 +30,7 @@ def run_backtest(df: pd.DataFrame, start_capital: float = 1000.0) -> dict:
     equity_curve = []
     buy_price = 0.0
 
-    # kaafi warmup chahiye taake indicators ready hon
+    # enough warmup is needed so the indicators are ready
     warmup = 60
     for i in range(warmup, len(df)):
         window = df.iloc[: i + 1]
@@ -53,7 +53,7 @@ def run_backtest(df: pd.DataFrame, start_capital: float = 1000.0) -> dict:
         equity = capital + units * price
         equity_curve.append({"time": window.index[-1], "equity": equity})
 
-    # aakhir mein agar position khuli hai to aakhri price par band karo
+    # at the end, if a position is still open, close it at the final price
     final_price = float(df.iloc[-1]["Close"])
     final_equity = capital + units * final_price
 
@@ -61,7 +61,7 @@ def run_backtest(df: pd.DataFrame, start_capital: float = 1000.0) -> dict:
     wins = [t for t in sells if t.get("pnl_pct", 0) > 0]
     total_return = (final_equity - start_capital) / start_capital * 100
 
-    # buy & hold se comparison
+    # comparison against buy & hold
     first_price = float(df.iloc[warmup]["Close"])
     buy_hold_return = (final_price - first_price) / first_price * 100
 

@@ -1,13 +1,14 @@
 """
 strategies.py
 --------------
-Duniya ke mashhoor traders aur trading books ki PROVEN strategies — har ek
-current data par apna signal deti hai, aur saath uska source (kis trader/book se).
+PROVEN strategies from world-famous traders and trading books — each one
+produces its signal from the current data, along with its source (which
+trader/book it comes from).
 
-Jab kai alag strategies ek hi taraf ishaara karein (confluence), to signal
-zyada bharosemand hota hai — yeh professional traders ka tareeka hai.
+When several different strategies point the same way (confluence), the signal
+is more reliable — this is how professional traders work.
 
-Sources (asal usool, koi copyrighted text nahi — sirf mechanics + attribution):
+Sources (core principles only, no copyrighted text — mechanics + attribution):
   - Turtle Trading / Donchian Breakout ...... Richard Dennis (1983)
   - Moving Average Cross (trend) ............. John Murphy (Technical Analysis)
   - RSI Reversal ............................. J. Welles Wilder (RSI inventor)
@@ -15,8 +16,8 @@ Sources (asal usool, koi copyrighted text nahi — sirf mechanics + attribution)
   - Bollinger Bands Bounce ................... John Bollinger
   - EMA Trend + Pullback ..................... common professional setup
 
-** DISCLAIMER **: Sirf education. Koi strategy hamesha nahi jeetti. Risk
-management (stop-loss, position size) har strategy se ZYADA zaroori hai.
+** DISCLAIMER **: For education only. No strategy wins every time. Risk
+management (stop-loss, position size) matters MORE than any strategy.
 """
 
 import pandas as pd
@@ -27,14 +28,14 @@ def _turtle_breakout(df: pd.DataFrame) -> dict:
     if len(df) < 21:
         return {}
     close = float(df["Close"].iloc[-1])
-    hh = float(df["High"].iloc[-21:-1].max())   # pichli 20 candle ka high
+    hh = float(df["High"].iloc[-21:-1].max())   # high of the last 20 candles
     ll = float(df["Low"].iloc[-21:-1].min())
     if close > hh:
-        sig, note = "BUY", "Price ne 20-candle high tod diya — naya uptrend shuru ho sakta hai."
+        sig, note = "BUY", "Price broke above the 20-candle high — a new uptrend may be starting."
     elif close < ll:
-        sig, note = "SELL", "Price ne 20-candle low tod diya — naya downtrend shuru ho sakta hai."
+        sig, note = "SELL", "Price broke below the 20-candle low — a new downtrend may be starting."
     else:
-        sig, note = "HOLD", "Price abhi range ke andar — breakout ka intezaar."
+        sig, note = "HOLD", "Price is still within the range — waiting for a breakout."
     return {"name": "Turtle Breakout", "source": "Richard Dennis (Turtle Traders)",
             "signal": sig, "note": note}
 
@@ -46,10 +47,10 @@ def _ma_cross(df: pd.DataFrame) -> dict:
         return {}
     if s20.iloc[-1] > s50.iloc[-1]:
         sig = "BUY"
-        note = "Short average long se upar (Golden Cross zone) — trend upar."
+        note = "Short average above the long average (Golden Cross zone) — trend is up."
     else:
         sig = "SELL"
-        note = "Short average long se neeche (Death Cross zone) — trend neeche."
+        note = "Short average below the long average (Death Cross zone) — trend is down."
     return {"name": "Moving Average Cross", "source": "John Murphy (Trend Following)",
             "signal": sig, "note": note}
 
@@ -61,11 +62,11 @@ def _rsi_reversal(df: pd.DataFrame) -> dict:
         return {}
     r = float(rsi.iloc[-1])
     if r < 30:
-        sig, note = "BUY", f"RSI {r:.0f} — oversold, bounce (upar) ka imkaan."
+        sig, note = "BUY", f"RSI {r:.0f} — oversold, bounce (up) likely."
     elif r > 70:
-        sig, note = "SELL", f"RSI {r:.0f} — overbought, pullback (neeche) ka imkaan."
+        sig, note = "SELL", f"RSI {r:.0f} — overbought, pullback (down) likely."
     else:
-        sig, note = "HOLD", f"RSI {r:.0f} — neutral zone, saaf signal nahi."
+        sig, note = "HOLD", f"RSI {r:.0f} — neutral zone, no clear signal."
     return {"name": "RSI Reversal", "source": "J. Welles Wilder (RSI)",
             "signal": sig, "note": note}
 
@@ -76,9 +77,9 @@ def _macd_momentum(df: pd.DataFrame) -> dict:
     if m is None or s is None or m.isna().iloc[-1] or s.isna().iloc[-1]:
         return {}
     if m.iloc[-1] > s.iloc[-1]:
-        sig, note = "BUY", "MACD signal line se upar — bullish momentum."
+        sig, note = "BUY", "MACD above the signal line — bullish momentum."
     else:
-        sig, note = "SELL", "MACD signal line se neeche — bearish momentum."
+        sig, note = "SELL", "MACD below the signal line — bearish momentum."
     return {"name": "MACD Momentum", "source": "Gerald Appel (MACD)",
             "signal": sig, "note": note}
 
@@ -90,11 +91,11 @@ def _bollinger_bounce(df: pd.DataFrame) -> dict:
         return {}
     close = float(df["Close"].iloc[-1])
     if close <= float(low.iloc[-1]):
-        sig, note = "BUY", "Price lower band ko chhoo raha — bounce ka imkaan."
+        sig, note = "BUY", "Price is touching the lower band — bounce likely."
     elif close >= float(up.iloc[-1]):
-        sig, note = "SELL", "Price upper band ko chhoo raha — pullback ka imkaan."
+        sig, note = "SELL", "Price is touching the upper band — pullback likely."
     else:
-        sig, note = "HOLD", "Price bands ke beech — koi extreme nahi."
+        sig, note = "HOLD", "Price is between the bands — no extreme."
     return {"name": "Bollinger Bounce", "source": "John Bollinger",
             "signal": sig, "note": note}
 
@@ -108,18 +109,18 @@ def _ema_trend_pullback(df: pd.DataFrame) -> dict:
     e9v, e21v = float(e9.iloc[-1]), float(e21.iloc[-1])
     if e9v > e21v:
         sig = "BUY"
-        note = "Uptrend (EMA9 > EMA21). Best entry: price EMA21 tak wapas aaye to."
+        note = "Uptrend (EMA9 > EMA21). Best entry: when price pulls back to EMA21."
     else:
         sig = "SELL"
-        note = "Downtrend (EMA9 < EMA21). Best entry: price EMA21 tak uchhle to."
+        note = "Downtrend (EMA9 < EMA21). Best entry: when price rallies up to EMA21."
     return {"name": "EMA Trend + Pullback", "source": "Professional trend setup",
             "signal": sig, "note": note}
 
 
 def run_all_strategies(df: pd.DataFrame) -> dict:
     """
-    Saari strategies chala kar unke signals aur confluence (kitni agree karti hain)
-    return karta hai.
+    Runs all strategies and returns their signals plus the confluence
+    (how many of them agree).
     """
     fns = [_turtle_breakout, _ma_cross, _rsi_reversal,
            _macd_momentum, _bollinger_bounce, _ema_trend_pullback]

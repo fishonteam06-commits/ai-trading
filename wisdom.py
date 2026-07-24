@@ -1,97 +1,98 @@
 """
 wisdom.py
 ----------
-Mashhoor traders aur trading books ke PROVEN usool — plain Roman Urdu mein.
-Yeh khud research se liye gaye asal principles hain (koi copyrighted text nahi,
-sirf usool + attribution). Streamlit tab mein render() se dikhte hain.
+PROVEN principles from famous traders and trading books — in plain English.
+These are the actual principles drawn from research (no copyrighted text,
+only the principles + attribution). Shown in a Streamlit tab via render().
 """
 
 import streamlit as st
 
 
-# (Usool, tafseel, source) — money management
+# (Principle, detail, source) — money management
 MONEY_RULES = [
     ("1% / 2% Risk Rule",
-     "Ek trade par apni total capital ka sirf 1-2% risk karo. Yun 10 trade "
-     "lagataar haar bhi jao to bhi account zinda rehta hai.",
+     "Risk only 1-2% of your total capital on any single trade. That way, even if "
+     "you lose 10 trades in a row, your account survives.",
      "Turtle Traders / Van Tharp"),
     ("Cut losses, let winners run",
-     "Nuqsan wale trade se JALDI niklo (stop-loss), aur nafa wale ko chalne do. "
-     "Yeh ek jumla hi zyadatar traders ki kamyabi ka raaz hai.",
+     "Exit losing trades QUICKLY (stop-loss), and let winning trades run. "
+     "This one phrase is the secret behind most successful traders.",
      "Richard Dennis (Turtles)"),
-    ("Risk-Reward kam se kam 1:2",
-     "Jitna risk (stop tak) le rahe ho, target us se kam se kam DOGUNA rakho. "
-     "Aise aadhe trade galat hon tab bhi aap profit mein rehte ho.",
+    ("Risk-Reward of at least 1:2",
+     "Set your target at least DOUBLE the risk you're taking (down to your stop). "
+     "That way you stay profitable even if half your trades go wrong.",
      "Classic money management"),
-    ("Pyramiding (soch samajh kar)",
-     "Jab trade aapke haq mein chale to hi position barhao — galat ja rahe trade "
-     "mein aur paisa 'average down' karke mat daalo.",
+    ("Pyramiding (thoughtfully)",
+     "Add to a position only when the trade moves in your favour — don't pour more "
+     "money into a losing trade by 'averaging down'.",
      "Turtle Traders"),
-    ("Kabhi bhi poori capital ek jagah nahi",
-     "Diversify karo — sab kuch ek coin/stock par mat lagao. Ek doobe to sab na doobe.",
+    ("Never put all your capital in one place",
+     "Diversify — don't bet everything on a single coin/stock. If one sinks, not all of it sinks.",
      "Common wisdom"),
 ]
 
-# Trading psychology — Mark Douglas (Trading in the Zone) ke asal ideas
+# Trading psychology — the core ideas from Mark Douglas (Trading in the Zone)
 PSYCH_RULES = [
-    ("Probability mein socho, yaqeen mein nahi",
-     "Koi bhi single trade jeet ya haar sakta hai — yeh normal hai. Aap sirf "
-     "apne 'edge' ko baar baar dohrao; nafa 100 trades ke set par banta hai, ek par nahi.",
+    ("Think in probabilities, not certainties",
+     "Any single trade can win or lose — that's normal. Your job is simply to repeat "
+     "your 'edge' again and again; profit is built over a set of 100 trades, not one.",
      "Mark Douglas"),
     ("Process > Outcome",
-     "Har trade ka nateeja mat dekho — apne plan par amal dekho. Achha trade wo "
-     "hai jo plan ke mutabiq liya gaya, chahe nuqsan hua ho.",
+     "Don't judge a trade by its result — judge it by how well you followed your plan. "
+     "A good trade is one taken according to plan, even if it lost.",
      "Mark Douglas"),
-    ("Fear aur Greed sab se bade dushman",
-     "Dar se achha trade miss ho jaata hai, laalach se bura trade le liya jaata hai. "
-     "Rules pehle se likho aur unhi par chalo — jazbaat mein faisla mat karo.",
+    ("Fear and Greed are the biggest enemies",
+     "Fear makes you miss good trades; greed makes you take bad ones. "
+     "Write your rules in advance and stick to them — don't decide on emotion.",
      "Mark Douglas"),
     ("Discipline = Consistency",
-     "Ek behtreen strategy bhi bina discipline ke haar jaati hai. Rozana wahi rules, "
-     "wahi risk, wahi sabr — yeh boring lagta hai lekin yehi jeetata hai.",
+     "Even a brilliant strategy loses without discipline. The same rules, the same "
+     "risk, the same patience every day — it feels boring, but that's what wins.",
      "Trading in the Zone"),
-    ("Revenge trading se bacho",
-     "Nuqsan ke foran baad 'wapas jeetne' ke liye jaldbazi mein trade mat karo — "
-     "yeh aksar aur bada nuqsan deta hai. Break lo, phir socho.",
+    ("Avoid revenge trading",
+     "Don't rush into a trade to 'win it back' right after a loss — "
+     "that usually leads to an even bigger loss. Take a break, then think.",
      "Pro traders"),
 ]
 
-# Pre-trade checklist (har trade se pehle)
+# Pre-trade checklist (before every trade)
 CHECKLIST = [
-    "Trend meri direction mein hai? (Multi-Timeframe tab check kiya?)",
-    "Entry ki wajah clear hai? (kam se kam 2-3 signals agree karte hain?)",
-    "Stop-loss kahan lagega — pehle se decide kiya?",
-    "Target kahan hai — Risk:Reward 1:2 ya behtar?",
-    "Is trade par sirf 1-2% risk le raha hoon? (Risk Calculator use kiya?)",
-    "Main jazbaat (dar/laalach/badla) mein to nahi? Dimaag thanda hai?",
+    "Is the trend in my direction? (Did I check the Multi-Timeframe tab?)",
+    "Is my reason for entry clear? (Do at least 2-3 signals agree?)",
+    "Where will my stop-loss go — decided in advance?",
+    "Where is my target — is the Risk:Reward 1:2 or better?",
+    "Am I risking only 1-2% on this trade? (Did I use the Risk Calculator?)",
+    "Am I free of emotion (fear/greed/revenge)? Is my head clear?",
 ]
 
 
 def render() -> None:
-    st.subheader("🎓 Pro Traders ke Proven Usool")
-    st.caption("Yeh duniya ke mashhoor traders aur trading books ke asal usool hain — "
-               "inhe seekhein aur amal karein. Strategy se ZYADA yeh usool paisa bachate hain.")
+    st.subheader("🎓 Proven Principles from Pro Traders")
+    st.caption("These are the actual principles from the world's famous traders and "
+               "trading books — learn them and apply them. More than any strategy, "
+               "these principles protect your money.")
 
-    st.markdown("### 💰 Money Management (paisa bachane ke usool)")
+    st.markdown("### 💰 Money Management (the rules that protect your capital)")
     for title, detail, src in MONEY_RULES:
         with st.container(border=True):
             st.markdown(f"**{title}**  \n{detail}")
             st.caption(f"— {src}")
 
-    st.markdown("### 🧠 Trading Psychology (dimaag ka control)")
-    st.caption("Mashhoor kitab *'Trading in the Zone'* (Mark Douglas) ke asal ideas:")
+    st.markdown("### 🧠 Trading Psychology (mastering your mind)")
+    st.caption("Core ideas from the famous book *'Trading in the Zone'* (Mark Douglas):")
     for title, detail, src in PSYCH_RULES:
         with st.container(border=True):
             st.markdown(f"**{title}**  \n{detail}")
             st.caption(f"— {src}")
 
-    st.markdown("### ✅ Har Trade se Pehle — Checklist")
-    st.write("Yeh 6 sawal har trade se PEHLE khud se poochein. Ek ka bhi jawab 'nahi' ho to trade mat karein:")
+    st.markdown("### ✅ Before Every Trade — Checklist")
+    st.write("Ask yourself these 6 questions BEFORE every trade. If even one answer is 'no', don't take the trade:")
     for i, item in enumerate(CHECKLIST, 1):
         st.checkbox(f"{i}. {item}", key=f"chk_{i}")
 
-    st.info("💡 **Sab se bada sabaq:** Kamyaab trader wo nahi jo hamesha sahi hota hai — "
-            "wo hai jo apne nuqsan chhote rakhta hai aur discipline se apne usool par chalta hai.")
+    st.info("💡 **The biggest lesson:** A successful trader isn't the one who's always "
+            "right — it's the one who keeps losses small and follows their rules with discipline.")
 
     st.caption("Sources: Turtle Traders (Richard Dennis), 'Trading in the Zone' (Mark Douglas), "
-               "classic money-management principles. Sirf education ke liye.")
+               "classic money-management principles. For educational purposes only.")

@@ -1,19 +1,19 @@
 """
 ai_analysis.py
 ---------------
-AI se market ka plain-language analysis. Teen providers support hain (sab OPTIONAL):
+Plain-language market analysis from AI. Three providers are supported (all OPTIONAL):
   - Claude   (Anthropic)  -> key: https://console.anthropic.com
   - Gemini   (Google)     -> key: https://aistudio.google.com/apikey
   - ChatGPT  (OpenAI)     -> key: https://platform.openai.com/api-keys
 
-User sidebar mein ek provider chunta hai aur uski key daalta hai. Bina AI ke
-bhi tool poora chalta hai (rule-based signals). Har library optional import hoti
-hai — jo install na ho, us provider ka friendly error aata hai (app crash nahi).
+The user selects a provider in the sidebar and enters its key. The tool works fully
+without AI too (rule-based signals). Each library is imported optionally — if one
+isn't installed, that provider returns a friendly error (the app never crashes).
 """
 
 import os
 
-# -- optional imports (jo mile wahi provider available) --
+# -- optional imports (a provider is available only if its library is present) --
 try:
     from anthropic import Anthropic
     _HAS_CLAUDE = True
@@ -32,14 +32,14 @@ try:
 except Exception:
     _HAS_OPENAI = False
 
-# Har provider ka default (sasta + tez) model
+# Each provider's default (cheap + fast) model
 DEFAULT_MODELS = {
     "claude": "claude-opus-4-8",
     "gemini": "gemini-2.0-flash",
     "chatgpt": "gpt-4o-mini",
 }
 
-# Provider ka aasan naam + key kahan se milti hai
+# Each provider's friendly name + where to get the key
 PROVIDERS = {
     "claude":  {"label": "Claude (Anthropic)", "key_url": "https://console.anthropic.com"},
     "gemini":  {"label": "Gemini (Google)",    "key_url": "https://aistudio.google.com/apikey"},
@@ -53,11 +53,11 @@ _ENV_KEYS = {
 }
 
 _SYSTEM = (
-    "Tum ek educational trading-analysis assistant ho. Tum market data aur "
-    "technical indicators ka aasan zubaan mein analysis karte ho taake user "
-    "seekhe ke market kya keh raha hai. Tum LICENSED financial advisor NAHI ho. "
-    "Kabhi bhi definite 'yeh khareedo, paisa pakka banega' type advice mat do. "
-    "Hamesha samjhao ke risk hota hai. Jawab Roman Urdu mein, chhota aur clear do."
+    "You are an educational trading-analysis assistant. You analyse market data and "
+    "technical indicators in plain language so the user can learn what the market is "
+    "saying. You are NOT a licensed financial advisor. "
+    "Never give definitive 'buy this, profit is guaranteed' type advice. "
+    "Always explain that risk is involved. Answer in clear, professional English — keep it short and clear."
 )
 
 
@@ -66,7 +66,7 @@ def _installed(provider: str) -> bool:
 
 
 def is_available(provider: str, api_key: str | None = None) -> bool:
-    """Check ke chuna gaya provider use ho sakta hai (library + key)."""
+    """Check whether the chosen provider can be used (library + key)."""
     if not _installed(provider):
         return False
     return bool(api_key or os.environ.get(_ENV_KEYS.get(provider, "")))
@@ -78,27 +78,27 @@ def _build_prompt(market: str, symbol: str, signal: dict) -> str:
         f"Market: {market.upper()} | Symbol: {symbol.upper()}\n"
         f"Current price: {signal.get('price')}\n"
         f"Rule-based signal: {signal.get('action')} (strength {signal.get('score')}%)\n"
-        f"Indicators keh rahe hain:\n{reasons_text}\n\n"
-        "Is data ki bunyaad par 3-4 line ka aasan analysis do: market abhi kya keh "
-        "raha hai, aur user ko kis cheez par nazar rakhni chahiye. Risk ka zikr zaroor karo."
+        f"The indicators are saying:\n{reasons_text}\n\n"
+        "Based on this data, give a simple 3-4 line analysis: what the market is saying "
+        "right now, and what the user should keep an eye on. Be sure to mention the risk."
     )
 
 
 def analyze(provider: str, market: str, symbol: str, signal: dict,
             api_key: str | None = None, model: str | None = None) -> str:
     """
-    Chuna gaya provider se plain-language analysis. Error par friendly message
-    (app kabhi crash nahi hota).
+    Plain-language analysis from the chosen provider. Returns a friendly message on
+    error (the app never crashes).
     """
     provider = provider.lower()
     if provider not in PROVIDERS:
         return f"Unknown AI provider: {provider}"
     if not _installed(provider):
-        return f"{PROVIDERS[provider]['label']} ki library install nahi. Terminal mein install karein."
+        return f"The {PROVIDERS[provider]['label']} library is not installed. Please install it in your terminal."
 
     key = api_key or os.environ.get(_ENV_KEYS[provider])
     if not key:
-        return f"AI off — {PROVIDERS[provider]['label']} ki API key nahi mili. Sidebar mein daalein."
+        return f"AI off — no API key found for {PROVIDERS[provider]['label']}. Please enter it in the sidebar."
 
     model = model or DEFAULT_MODELS[provider]
     prompt = _build_prompt(market, symbol, signal)
@@ -132,5 +132,5 @@ def analyze(provider: str, market: str, symbol: str, signal: dict,
             return resp.choices[0].message.content.strip()
 
     except Exception as e:
-        return (f"{PROVIDERS[provider]['label']} se analysis nahi mil saka "
-                f"(error: {e}). Rule-based signal upar phir bhi maujood hai.")
+        return (f"Could not get analysis from {PROVIDERS[provider]['label']} "
+                f"(error: {e}). The rule-based signal above is still available.")

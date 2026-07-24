@@ -1,21 +1,21 @@
 """
 predictor.py
 -------------
-"Agli candle" (jo abhi ban rahi hai) ka rukh predict karta hai:
-UP (BUY / upar) ya DOWN (SELL / neeche) — ek confidence % ke saath.
+Predicts the direction of the "next candle" (the one currently forming):
+UP (BUY) or DOWN (SELL) — together with a confidence %.
 
-Yeh kai forward-looking cheezein mila kar ek probability nikalta hai:
-  - Trend (EMA9 vs EMA21 aur unki dhalaan/slope)
-  - Momentum (pichli candles ke returns)
-  - MACD histogram barh raha ya ghat raha
-  - RSI level + direction (overbought/oversold pe reversal ka imkaan)
-  - Candle body streak (lagataar green/red)
+It combines several forward-looking factors into a single probability:
+  - Trend (EMA9 vs EMA21 and their slope)
+  - Momentum (returns of the most recent candles)
+  - MACD histogram rising or falling
+  - RSI level + direction (reversal potential at overbought/oversold)
+  - Candle body streak (consecutive green/red)
   - Stochastic (%K vs %D)
   - Volume confirmation
 
-** BOHAT ZAROORI **: Yeh 100% pesh-goi (guarantee) NAHI hai. Market kabhi bhi
-palat sakta hai. Yeh sirf ek EDUCATIONAL probability estimate hai — is par
-apna poora paisa mat lagayein. Hamesha stop-loss use karein.
+** IMPORTANT **: This is NOT a 100% guarantee. The market can reverse at any
+time. This is only an EDUCATIONAL probability estimate — do not risk all your
+capital on it. Always use a stop-loss.
 """
 
 import pandas as pd
@@ -23,14 +23,14 @@ import pandas as pd
 
 def predict_next_candle(df: pd.DataFrame) -> dict:
     """
-    Aakhri candles ka hisab lagakar agli candle ka rukh estimate karta hai.
+    Estimates the direction of the next candle from the most recent candles.
     Return: {direction, confidence, prob_up, prob_down, reasons}
-      direction : 'BUY' (upar), 'SELL' (neeche), ya 'NEUTRAL'
-      confidence: 0-100 (kitna strong lean hai)
+      direction : 'BUY' (up), 'SELL' (down), or 'NEUTRAL'
+      confidence: 0-100 (how strong the lean is)
     """
     if len(df) < 5:
         return {"direction": "NEUTRAL", "confidence": 0, "prob_up": 50,
-                "prob_down": 50, "reasons": ["Kaafi data nahi."]}
+                "prob_down": 50, "reasons": ["Not enough data."]}
 
     last = df.iloc[-1]
     up = 0.0
@@ -44,42 +44,42 @@ def predict_next_candle(df: pd.DataFrame) -> dict:
     if pd.notna(ema9) and pd.notna(ema21):
         if ema9 > ema21:
             up += 1.5
-            reasons.append("🟢 Short-term trend upar (EMA9 > EMA21).")
+            reasons.append("🟢 Short-term trend is up (EMA9 > EMA21).")
         else:
             down += 1.5
-            reasons.append("🔴 Short-term trend neeche (EMA9 < EMA21).")
+            reasons.append("🔴 Short-term trend is down (EMA9 < EMA21).")
 
-        # EMA9 ki dhalaan (slope) — pichli 3 candle se compare
+        # EMA9 slope — compared with 3 candles ago
         if len(df) >= 4 and "EMA9" in df:
             ema9_prev = df["EMA9"].iloc[-4]
             if pd.notna(ema9_prev):
                 if ema9 > ema9_prev:
                     up += 1
-                    reasons.append("🟢 EMA9 upar ki taraf mud raha (momentum barh raha).")
+                    reasons.append("🟢 EMA9 is turning up (momentum building).")
                 else:
                     down += 1
-                    reasons.append("🔴 EMA9 neeche ki taraf mud raha (momentum ghat raha).")
+                    reasons.append("🔴 EMA9 is turning down (momentum fading).")
 
-    # --- 2. Recent momentum (pichli 3 candles ka return) ---
+    # --- 2. Recent momentum (return of the last 3 candles) ---
     rets = close.pct_change().tail(3)
     mom = float(rets.sum())
     if mom > 0:
         up += 1
-        reasons.append(f"🟢 Pichli 3 candles ka rujhan upar ({mom*100:+.2f}%).")
+        reasons.append(f"🟢 Last 3 candles are trending up ({mom*100:+.2f}%).")
     elif mom < 0:
         down += 1
-        reasons.append(f"🔴 Pichli 3 candles ka rujhan neeche ({mom*100:+.2f}%).")
+        reasons.append(f"🔴 Last 3 candles are trending down ({mom*100:+.2f}%).")
 
-    # --- 3. MACD histogram barh raha ya ghat raha ---
+    # --- 3. MACD histogram rising or falling ---
     if "MACD_HIST" in df and len(df) >= 2:
         h_now, h_prev = df["MACD_HIST"].iloc[-1], df["MACD_HIST"].iloc[-2]
         if pd.notna(h_now) and pd.notna(h_prev):
             if h_now > h_prev:
                 up += 1
-                reasons.append("🟢 MACD momentum barh raha hai.")
+                reasons.append("🟢 MACD momentum is rising.")
             else:
                 down += 1
-                reasons.append("🔴 MACD momentum ghat raha hai.")
+                reasons.append("🔴 MACD momentum is fading.")
 
     # --- 4. RSI level + direction ---
     rsi_now = last.get("RSI")
@@ -87,40 +87,40 @@ def predict_next_candle(df: pd.DataFrame) -> dict:
         rsi_prev = df["RSI"].iloc[-2]
         if rsi_now > 70:
             down += 1.5
-            reasons.append(f"🔴 RSI {rsi_now:.0f} — overbought, pullback (neeche) ka imkaan.")
+            reasons.append(f"🔴 RSI {rsi_now:.0f} — overbought, pullback (down) likely.")
         elif rsi_now < 30:
             up += 1.5
-            reasons.append(f"🟢 RSI {rsi_now:.0f} — oversold, bounce (upar) ka imkaan.")
+            reasons.append(f"🟢 RSI {rsi_now:.0f} — oversold, bounce (up) likely.")
         elif pd.notna(rsi_prev):
             if rsi_now > rsi_prev:
                 up += 0.5
-                reasons.append("🟢 RSI upar ja raha (buyers active).")
+                reasons.append("🟢 RSI is rising (buyers active).")
             else:
                 down += 0.5
-                reasons.append("🔴 RSI neeche ja raha (sellers active).")
+                reasons.append("🔴 RSI is falling (sellers active).")
 
-    # --- 5. Candle body streak (lagataar green/red) ---
+    # --- 5. Candle body streak (consecutive green/red) ---
     bodies = (df["Close"] - df["Open"]).tail(3)
     greens = int((bodies > 0).sum())
     reds = int((bodies < 0).sum())
     if greens == 3:
         up += 0.8
-        reasons.append("🟢 Pichli 3 candles green — buyers ka control.")
+        reasons.append("🟢 Last 3 candles green — buyers in control.")
     elif reds == 3:
         down += 0.8
-        reasons.append("🔴 Pichli 3 candles red — sellers ka control.")
+        reasons.append("🔴 Last 3 candles red — sellers in control.")
 
     # --- 6. Stochastic (%K vs %D) ---
     k, d = last.get("STOCH_K"), last.get("STOCH_D")
     if pd.notna(k) and pd.notna(d):
         if k > d:
             up += 0.7
-            reasons.append("🟢 Stochastic %K upar — short-term upar ka dabaao.")
+            reasons.append("🟢 Stochastic %K above %D — short-term upward pressure.")
         else:
             down += 0.7
-            reasons.append("🔴 Stochastic %K neeche — short-term neeche ka dabaao.")
+            reasons.append("🔴 Stochastic %K below %D — short-term downward pressure.")
 
-    # --- 7. Volume confirmation (aakhri candle ka volume average se zyada?) ---
+    # --- 7. Volume confirmation (is the last candle's volume above average?) ---
     if "Volume" in df and len(df) >= 20:
         vol_now = float(df["Volume"].iloc[-1])
         vol_avg = float(df["Volume"].tail(20).mean())
@@ -128,18 +128,18 @@ def predict_next_candle(df: pd.DataFrame) -> dict:
         if vol_now > vol_avg * 1.2 and last_body != 0:
             if last_body > 0:
                 up += 0.6
-                reasons.append("🟢 Zyada volume ke saath green candle — strong buying.")
+                reasons.append("🟢 Green candle on above-average volume — strong buying.")
             else:
                 down += 0.6
-                reasons.append("🔴 Zyada volume ke saath red candle — strong selling.")
+                reasons.append("🔴 Red candle on above-average volume — strong selling.")
 
     # --- Final probability ---
     total = up + down
     if total == 0:
         return {"direction": "NEUTRAL", "confidence": 0, "prob_up": 50,
-                "prob_down": 50, "reasons": reasons or ["Saaf rujhan nahi."]}
+                "prob_down": 50, "reasons": reasons or ["No clear trend."]}
 
-    # 5-95% ke darmiyan clamp — kabhi 0%/100% nahi (koi cheez yaqeeni nahi).
+    # Clamp between 5-95% — never 0%/100% (nothing is certain).
     prob_up = round(up / total * 100)
     prob_up = max(5, min(95, prob_up))
     prob_down = 100 - prob_up

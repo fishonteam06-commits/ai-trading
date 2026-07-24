@@ -1,12 +1,12 @@
 """
 signals.py
 -----------
-Yeh indicators dekhkar ek simple, rule-based signal banata hai:
-BUY / SELL / HOLD  +  ek "confidence score".
+Builds a simple, rule-based signal from the indicators:
+BUY / SELL / HOLD  +  a "confidence score".
 
-** ZAROORI **: Yeh financial advice NAHI hai. Yeh sirf ek educational
-technical-analysis tool hai. Har signal ki wajah bhi saath likhi hoti hai
-taake aap khud samajh kar faisla karein.
+** IMPORTANT **: This is NOT financial advice. It is only an educational
+technical-analysis tool. The reason behind each signal is written alongside it
+so you can understand it and decide for yourself.
 """
 
 import pandas as pd
@@ -15,8 +15,8 @@ import pandas as pd
 def multi_timeframe_signal(market: str, symbol: str,
                            timeframes: list[str] | None = None) -> dict:
     """
-    Ek hi symbol ko kai timeframes (jaise 15m, 1h, 4h, 1d) par check karta hai.
-    Jab zyada timeframes ek hi taraf ishaara karein to signal zyada bharosemand.
+    Checks a single symbol across several timeframes (e.g. 15m, 1h, 4h, 1d).
+    When more timeframes point the same way, the signal is more reliable.
 
     Return: {per_tf: {tf: action}, consensus: 'BUY'/'SELL'/'MIXED', agree: int, total: int}
     """
@@ -48,13 +48,13 @@ def multi_timeframe_signal(market: str, symbol: str,
 
 def generate_signal(df: pd.DataFrame) -> dict:
     """
-    Aakhri (latest) candle ke indicators dekhkar signal banata hai.
-    Return: dict jismein action, score, aur reasons (wajah) hoti hain.
+    Builds a signal from the indicators of the latest candle.
+    Return: dict containing action, score, and reasons.
     """
     last = df.iloc[-1]
     reasons = []
-    bullish = 0   # upar jaane ke points
-    bearish = 0   # neeche jaane ke points
+    bullish = 0   # points for an upward move
+    bearish = 0   # points for a downward move
 
     close = float(last["Close"])
 
@@ -63,10 +63,10 @@ def generate_signal(df: pd.DataFrame) -> dict:
     if pd.notna(rsi_val):
         if rsi_val < 30:
             bullish += 2
-            reasons.append(f"RSI {rsi_val:.0f} — oversold (sasta), barhne ka chance.")
+            reasons.append(f"RSI {rsi_val:.0f} — oversold, potential to rise.")
         elif rsi_val > 70:
             bearish += 2
-            reasons.append(f"RSI {rsi_val:.0f} — overbought (mehnga), girne ka chance.")
+            reasons.append(f"RSI {rsi_val:.0f} — overbought, potential to fall.")
         else:
             reasons.append(f"RSI {rsi_val:.0f} — normal range (neutral).")
 
@@ -75,39 +75,39 @@ def generate_signal(df: pd.DataFrame) -> dict:
     if pd.notna(sma20) and pd.notna(sma50):
         if sma20 > sma50:
             bullish += 1
-            reasons.append("Short-term average long-term se upar — uptrend.")
+            reasons.append("Short-term average above long-term — uptrend.")
         else:
             bearish += 1
-            reasons.append("Short-term average long-term se neeche — downtrend.")
+            reasons.append("Short-term average below long-term — downtrend.")
 
     # --- 3. Price vs SMA20 ---
     if pd.notna(sma20):
         if close > sma20:
             bullish += 1
-            reasons.append("Price 20-average se upar — momentum upar.")
+            reasons.append("Price above the 20-average — upward momentum.")
         else:
             bearish += 1
-            reasons.append("Price 20-average se neeche — momentum neeche.")
+            reasons.append("Price below the 20-average — downward momentum.")
 
     # --- 4. MACD ---
     macd_val, macd_sig = last.get("MACD"), last.get("MACD_SIGNAL")
     if pd.notna(macd_val) and pd.notna(macd_sig):
         if macd_val > macd_sig:
             bullish += 1
-            reasons.append("MACD signal line se upar — bullish momentum.")
+            reasons.append("MACD above the signal line — bullish momentum.")
         else:
             bearish += 1
-            reasons.append("MACD signal line se neeche — bearish momentum.")
+            reasons.append("MACD below the signal line — bearish momentum.")
 
     # --- 5. Bollinger Bands ---
     bb_up, bb_low = last.get("BB_UPPER"), last.get("BB_LOWER")
     if pd.notna(bb_up) and pd.notna(bb_low):
         if close <= bb_low:
             bullish += 1
-            reasons.append("Price lower band ko chhoo raha — bounce ka chance.")
+            reasons.append("Price touching the lower band — bounce potential.")
         elif close >= bb_up:
             bearish += 1
-            reasons.append("Price upper band ko chhoo raha — pullback ka chance.")
+            reasons.append("Price touching the upper band — pullback potential.")
 
     # --- Final decision ---
     total = bullish + bearish
@@ -122,7 +122,7 @@ def generate_signal(df: pd.DataFrame) -> dict:
 
     return {
         "action": action,
-        "score": score,           # 0-100, kitna strong signal hai
+        "score": score,           # 0-100, how strong the signal is
         "bullish_points": bullish,
         "bearish_points": bearish,
         "price": close,

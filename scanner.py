@@ -1,9 +1,9 @@
 """
 scanner.py
 -----------
-Market Scanner — ek saath bohat saare symbols scan karke best signals dhoondta hai.
-Yeh "har din opportunities" dhoondhne ka sabse kaam ka feature hai:
-subah kholo, scan chalao, aur dekho kahan strong setup ban raha hai.
+Market Scanner — scans many symbols at once to find the best signals.
+This is the most useful feature for finding "daily opportunities":
+open it in the morning, run a scan, and see where a strong setup is forming.
 """
 
 import pandas as pd
@@ -15,8 +15,8 @@ from signals import generate_signal
 
 def scan(market: str, symbols: list[str], interval: str = "1h") -> pd.DataFrame:
     """
-    Diye gaye symbols ki list scan karta hai aur ek table return karta hai
-    jise signal strength ke hisab se sort kiya gaya hota hai.
+    Scans the given list of symbols and returns a table
+    sorted by signal strength.
     """
     rows = []
     for sym in symbols:
@@ -42,7 +42,7 @@ def scan(market: str, symbols: list[str], interval: str = "1h") -> pd.DataFrame:
     if df_out.empty:
         return df_out
 
-    # Strong BUY/SELL upar aayen, HOLD neeche
+    # Strong BUY/SELL come to the top, HOLD to the bottom
     order = {"BUY": 0, "SELL": 1, "HOLD": 2, "ERROR": 3}
     df_out["_o"] = df_out["Signal"].map(lambda s: order.get(s, 3))
     df_out = df_out.sort_values(["_o", "Strength %"], ascending=[True, False])
