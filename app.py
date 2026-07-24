@@ -23,6 +23,7 @@ from data_sources import get_data, get_live_price
 from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
+from predictor import predict_next_candle
 import auth
 from scanner import scan
 from backtest import run_backtest
@@ -213,6 +214,35 @@ with tab_dash:
             st.toast(f"🔔 {symbol}: Strong {action} signal ({sig['score']}%)!", icon="🔔")
             if sound_on:
                 play_alert_sound()
+
+        # ---- Agli Candle Prediction (next candle ka rukh) ----
+        pred = predict_next_candle(df)
+        st.markdown("### 🔮 Agli Candle Prediction")
+        pdir = pred["direction"]
+        pcolor = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}[pdir]
+        ptext = {"BUY": "UPAR jaane ka imkaan (BUY)",
+                 "SELL": "NEECHE jaane ka imkaan (SELL)",
+                 "NEUTRAL": "Saaf rukh nahi (wait karein)"}[pdir]
+        pc1, pc2, pc3 = st.columns([2, 1, 1])
+        pc1.metric("Agli candle ka rukh", f"{pcolor} {pdir}", ptext)
+        pc2.metric("🟢 Upar (BUY)", f"{pred['prob_up']}%")
+        pc3.metric("🔴 Neeche (SELL)", f"{pred['prob_down']}%")
+        # confidence bar
+        st.progress(pred["prob_up"] / 100,
+                    text=f"Upar {pred['prob_up']}%  vs  Neeche {pred['prob_down']}%  "
+                         f"(confidence {pred['confidence']}%)")
+        if pdir == "BUY":
+            st.success(f"🟢 Model ka anumaan: agli candle **UPAR (BUY)** — {pred['confidence']}% confidence.")
+        elif pdir == "SELL":
+            st.error(f"🔴 Model ka anumaan: agli candle **NEECHE (SELL)** — {pred['confidence']}% confidence.")
+        else:
+            st.warning("🟡 Rukh saaf nahi — behtar hai thora rukein.")
+        with st.expander("🔍 Yeh anumaan kaise laga? (wajah dekhein)"):
+            for r in pred["reasons"]:
+                st.markdown(f"- {r}")
+            st.caption("⚠️ Yeh 100% pesh-goi NAHI — sirf probability estimate. "
+                       "Market kabhi bhi palat sakta hai. Stop-loss zaroor lagayein.")
+        st.markdown("---")
 
         # ---- Chart (dynamic: sidebar toggles ke hisab se) ----
         st.subheader(f"{symbol} — {chart_type} + Indicators")
