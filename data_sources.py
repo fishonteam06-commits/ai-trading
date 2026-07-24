@@ -57,19 +57,38 @@ _YF_INTERVAL = {
 }
 
 
+# Binance ke public hosts — pehla US/kuch regions se block (HTTP 451) ho sakta hai,
+# is liye 'data-api.binance.vision' fallback (yeh har jagah, cloud servers se bhi chalta hai).
+_BINANCE_HOSTS = [
+    "https://api.binance.com",
+    "https://data-api.binance.vision",
+    "https://api1.binance.com",
+]
+
+
+def _binance_get(path: str, params: dict):
+    """Binance call — agar ek host block/fail ho to agla try karta hai."""
+    last_err = None
+    for host in _BINANCE_HOSTS:
+        try:
+            resp = requests.get(host + path, params=params, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"Binance se data nahi mila (sab hosts fail): {last_err}")
+
+
 def get_crypto(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200) -> pd.DataFrame:
     """
     Crypto data Binance se. symbol jaise 'BTCUSDT', 'ETHUSDT', 'BNBUSDT'.
     """
-    url = "https://api.binance.com/api/v3/klines"
-    params = {
+    raw = _binance_get("/api/v3/klines", {
         "symbol": symbol.upper(),
         "interval": _BINANCE_INTERVAL.get(interval, "1h"),
         "limit": limit,
-    }
-    resp = requests.get(url, params=params, timeout=15)
-    resp.raise_for_status()
-    raw = resp.json()
+    })
 
     df = pd.DataFrame(
         raw,
@@ -134,10 +153,8 @@ def get_live_price(market: str, symbol: str) -> float | None:
     try:
         symbol = sanitize_symbol(symbol)   # security: bad input block
         if market == "crypto":
-            url = "https://api.binance.com/api/v3/ticker/price"
-            resp = requests.get(url, params={"symbol": symbol}, timeout=8)
-            resp.raise_for_status()
-            return float(resp.json()["price"])
+            data = _binance_get("/api/v3/ticker/price", {"symbol": symbol})
+            return float(data["price"])
 
         if not _HAS_YF:
             return None
