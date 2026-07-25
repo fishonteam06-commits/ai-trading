@@ -100,7 +100,8 @@ PRESETS = {
                "DOGEUSDT", "AVAXUSDT", "LTCUSDT", "LINKUSDT", "DOTUSDT", "MATICUSDT"],
     "stock": ["AAPL", "TSLA", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AMD", "NFLX", "INTC"],
     "forex": ["EURUSD", "GBPUSD", "USDJPY", "USDPKR", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"],
-    "commodity": ["GC=F", "SI=F", "PL=F", "HG=F", "CL=F", "NG=F"],
+    "commodity": ["XAUUSD", "XAGUSD", "DXY", "GC=F", "SI=F", "PL=F", "HG=F",
+                  "CL=F", "NG=F", "US30", "US500", "NAS100"],
 }
 MK_LABEL = {"crypto": "Crypto 🪙", "stock": "Stocks 📊", "forex": "Forex 💱",
             "commodity": "Commodities 🥇"}
@@ -127,8 +128,13 @@ SYMBOL_NAMES = {
         "USDCHF": "Dollar / Swiss Franc (USDCHF)", "NZDUSD": "Kiwi / Dollar (NZDUSD)",
     },
     "commodity": {
-        "GC=F": "Gold (GC=F)", "SI=F": "Silver (SI=F)", "PL=F": "Platinum (PL=F)",
-        "HG=F": "Copper (HG=F)", "CL=F": "Crude Oil (CL=F)", "NG=F": "Natural Gas (NG=F)",
+        "XAUUSD": "Gold Spot (XAUUSD)", "XAGUSD": "Silver Spot (XAGUSD)",
+        "DXY": "US Dollar Index (DXY)",
+        "GC=F": "Gold Futures (GC=F)", "SI=F": "Silver Futures (SI=F)",
+        "PL=F": "Platinum (PL=F)", "HG=F": "Copper (HG=F)",
+        "CL=F": "Crude Oil (CL=F)", "NG=F": "Natural Gas (NG=F)",
+        "US30": "Dow Jones (US30)", "US500": "S&P 500 (US500)",
+        "NAS100": "Nasdaq 100 (NAS100)",
     },
 }
 TF_LABEL = {"1m": "1 Min", "5m": "5 Min", "15m": "15 Min", "1h": "1 Hour", "4h": "4 Hours", "1d": "1 Day"}
@@ -403,8 +409,10 @@ with tab_dash:
             row=1, col=1)
 
         fig.update_layout(height=300 + 130 * len(panels), xaxis_rangeslider_visible=False,
-                          margin=dict(l=10, r=10, t=30, b=10), showlegend=True,
+                          margin=dict(l=8, r=68, t=30, b=10), showlegend=True,
                           legend=dict(orientation="h", y=1.02), dragmode="pan")
+        # Price/indicator scale on the RIGHT side (like TradingView / MT5)
+        fig.update_yaxes(side="right", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
         st.plotly_chart(fig, use_container_width=True,
                         config={"scrollZoom": True, "displaylogo": False})
 

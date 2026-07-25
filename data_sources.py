@@ -26,6 +26,23 @@ except Exception:
 _SYMBOL_RE = re.compile(r"^[A-Za-z0-9\.\-=]{1,15}$")
 
 
+# Friendly / MT5-style symbols mapped to the ticker Yahoo actually serves.
+# (Yahoo has no free spot XAUUSD/XAGUSD, so we use the futures as a close proxy.)
+_YAHOO_ALIAS = {
+    "XAUUSD": "GC=F",      # Spot Gold  -> Gold futures (close proxy)
+    "XAGUSD": "SI=F",      # Spot Silver -> Silver futures
+    "DXY": "DX-Y.NYB",     # US Dollar Index
+    "US30": "^DJI",        # Dow Jones
+    "US500": "^GSPC",      # S&P 500
+    "NAS100": "^NDX",      # Nasdaq 100
+}
+
+
+def _resolve_yahoo(symbol: str) -> str:
+    """Maps a friendly/MT5-style symbol to the ticker Yahoo serves."""
+    return _YAHOO_ALIAS.get(symbol.upper(), symbol)
+
+
 def sanitize_symbol(symbol: str) -> str:
     """
     Cleans the symbol — only valid characters. Blocks invalid/dangerous input
@@ -113,7 +130,7 @@ def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
         )
     yf_interval, period = _YF_INTERVAL.get(interval, ("1d", "1y"))
     data = yf.download(
-        symbol, period=period, interval=yf_interval,
+        _resolve_yahoo(symbol), period=period, interval=yf_interval,
         progress=False, auto_adjust=True,
     )
     if data is None or data.empty:
@@ -125,7 +142,11 @@ def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
 
     data = data.rename(columns=str.title)
     keep = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in data.columns]
-    return data[keep].tail(limit)
+    # Drop rows with no Close (indices sometimes have a trailing empty bar)
+    result = data[keep].dropna(subset=["Close"])
+    if result.empty:
+        raise RuntimeError(f"No usable data for '{symbol}'.")
+    return result.tail(limit)
 
 
 def get_stock(symbol: str = "AAPL", interval: str = "1d", limit: int = 200) -> pd.DataFrame:
@@ -172,7 +193,7 @@ def get_live_price(market: str, symbol: str) -> float | None:
         yahoo_symbol = symbol.upper()
         if market == "forex":
             yahoo_symbol = yahoo_symbol.replace("=X", "") + "=X"
-        ticker = yf.Ticker(yahoo_symbol)
+        ticker = yf.Ticker(_resolve_yahoo(yahoo_symbol))
         info = getattr(ticker, "fast_info", None)
         if info is not None:
             price = info.get("last_price") or info.get("lastPrice")
