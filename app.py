@@ -96,19 +96,42 @@ st.markdown(
 auth.require_login()
 
 PRESETS = {
-    "crypto": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT"],
-    "stock": ["AAPL", "TSLA", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AMD"],
-    "forex": ["EURUSD", "GBPUSD", "USDJPY", "USDPKR", "AUDUSD", "USDCAD"],
+    "crypto": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
+               "DOGEUSDT", "AVAXUSDT", "LTCUSDT", "LINKUSDT", "DOTUSDT", "MATICUSDT"],
+    "stock": ["AAPL", "TSLA", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AMD", "NFLX", "INTC"],
+    "forex": ["EURUSD", "GBPUSD", "USDJPY", "USDPKR", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"],
     "commodity": ["GC=F", "SI=F", "PL=F", "HG=F", "CL=F", "NG=F"],
 }
 MK_LABEL = {"crypto": "Crypto 🪙", "stock": "Stocks 📊", "forex": "Forex 💱",
             "commodity": "Commodities 🥇"}
-# Friendly names for commodity futures symbols (shown instead of the raw ticker)
-COMMODITY_NAMES = {
-    "GC=F": "Gold (GC=F)", "SI=F": "Silver (SI=F)", "PL=F": "Platinum (PL=F)",
-    "HG=F": "Copper (HG=F)", "CL=F": "Crude Oil (CL=F)", "NG=F": "Natural Gas (NG=F)",
+# Friendly names shown in the Symbol picker (instead of the raw ticker), per market.
+SYMBOL_NAMES = {
+    "crypto": {
+        "BTCUSDT": "Bitcoin (BTCUSDT)", "ETHUSDT": "Ethereum (ETHUSDT)",
+        "BNBUSDT": "BNB (BNBUSDT)", "SOLUSDT": "Solana (SOLUSDT)",
+        "XRPUSDT": "XRP (XRPUSDT)", "ADAUSDT": "Cardano (ADAUSDT)",
+        "DOGEUSDT": "Dogecoin (DOGEUSDT)", "AVAXUSDT": "Avalanche (AVAXUSDT)",
+        "LTCUSDT": "Litecoin (LTCUSDT)", "LINKUSDT": "Chainlink (LINKUSDT)",
+        "DOTUSDT": "Polkadot (DOTUSDT)", "MATICUSDT": "Polygon (MATICUSDT)",
+    },
+    "stock": {
+        "AAPL": "Apple (AAPL)", "TSLA": "Tesla (TSLA)", "MSFT": "Microsoft (MSFT)",
+        "NVDA": "Nvidia (NVDA)", "AMZN": "Amazon (AMZN)", "GOOGL": "Google (GOOGL)",
+        "META": "Meta (META)", "AMD": "AMD (AMD)", "NFLX": "Netflix (NFLX)",
+        "INTC": "Intel (INTC)",
+    },
+    "forex": {
+        "EURUSD": "Euro / Dollar (EURUSD)", "GBPUSD": "Pound / Dollar (GBPUSD)",
+        "USDJPY": "Dollar / Yen (USDJPY)", "USDPKR": "Dollar / Rupee (USDPKR)",
+        "AUDUSD": "Aussie / Dollar (AUDUSD)", "USDCAD": "Dollar / Canadian (USDCAD)",
+        "USDCHF": "Dollar / Swiss Franc (USDCHF)", "NZDUSD": "Kiwi / Dollar (NZDUSD)",
+    },
+    "commodity": {
+        "GC=F": "Gold (GC=F)", "SI=F": "Silver (SI=F)", "PL=F": "Platinum (PL=F)",
+        "HG=F": "Copper (HG=F)", "CL=F": "Crude Oil (CL=F)", "NG=F": "Natural Gas (NG=F)",
+    },
 }
-TF_LABEL = {"5m": "5 Min", "15m": "15 Min", "1h": "1 Hour", "4h": "4 Hours", "1d": "1 Day"}
+TF_LABEL = {"1m": "1 Min", "5m": "5 Min", "15m": "15 Min", "1h": "1 Hour", "4h": "4 Hours", "1d": "1 Day"}
 
 # ------------------------------------------------------------------ sidebar
 st.sidebar.title("⚙️ Settings")
@@ -120,13 +143,13 @@ market = st.sidebar.selectbox("Market", ["crypto", "stock", "forex", "commodity"
                               format_func=lambda m: MK_LABEL[m])
 symbol = st.sidebar.selectbox(
     "Symbol", PRESETS[market],
-    format_func=lambda s: COMMODITY_NAMES.get(s, s) if market == "commodity" else s,
+    format_func=lambda s: SYMBOL_NAMES.get(market, {}).get(s, s),
 )
 custom = st.sidebar.text_input("...or enter your own symbol", "")
 if custom.strip():
     symbol = custom.strip().upper()
-interval = st.sidebar.selectbox("Timeframe", ["5m", "15m", "1h", "4h", "1d"],
-                                index=2, format_func=lambda i: TF_LABEL[i])
+interval = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "4h", "1d"],
+                                index=3, format_func=lambda i: TF_LABEL[i])
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📈 Chart")
@@ -368,6 +391,16 @@ with tab_dash:
                 fig.add_hline(y=80, line_dash="dash", line_color="red", row=r, col=1)
                 fig.add_hline(y=20, line_dash="dash", line_color="green", row=r, col=1)
             r += 1
+
+        # -- Current price level line (like TradingView's price line) --
+        price_line_color = "#2ecc71" if change_pct >= 0 else "#e74c3c"
+        fig.add_hline(
+            y=price, line_dash="dot", line_width=1.2, line_color=price_line_color,
+            annotation_text=f" {price:,.4f}".rstrip("0").rstrip("."),
+            annotation_position="right",
+            annotation_font_color="#ffffff",
+            annotation_bgcolor=price_line_color,
+            row=1, col=1)
 
         fig.update_layout(height=300 + 130 * len(panels), xaxis_rangeslider_visible=False,
                           margin=dict(l=10, r=10, t=30, b=10), showlegend=True,

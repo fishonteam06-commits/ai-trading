@@ -42,6 +42,7 @@ def sanitize_symbol(symbol: str) -> str:
 
 # Mapping of Binance intervals (from the dashboard's simple names)
 _BINANCE_INTERVAL = {
+    "1m": "1m",
     "5m": "5m",
     "15m": "15m",
     "1h": "1h",
@@ -49,7 +50,8 @@ _BINANCE_INTERVAL = {
     "1d": "1d",
 }
 _YF_INTERVAL = {
-    "5m": ("5m", "5d"),     # (interval, period)
+    "1m": ("1m", "5d"),     # (interval, period)
+    "5m": ("5m", "5d"),
     "15m": ("15m", "5d"),
     "1h": ("60m", "60d"),
     "4h": ("1h", "60d"),    # yfinance has no 4h, so we use 1h
