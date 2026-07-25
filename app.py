@@ -99,8 +99,15 @@ PRESETS = {
     "crypto": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT"],
     "stock": ["AAPL", "TSLA", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AMD"],
     "forex": ["EURUSD", "GBPUSD", "USDJPY", "USDPKR", "AUDUSD", "USDCAD"],
+    "commodity": ["GC=F", "SI=F", "PL=F", "HG=F", "CL=F", "NG=F"],
 }
-MK_LABEL = {"crypto": "Crypto 🪙", "stock": "Stocks 📊", "forex": "Forex 💱"}
+MK_LABEL = {"crypto": "Crypto 🪙", "stock": "Stocks 📊", "forex": "Forex 💱",
+            "commodity": "Commodities 🥇"}
+# Friendly names for commodity futures symbols (shown instead of the raw ticker)
+COMMODITY_NAMES = {
+    "GC=F": "Gold (GC=F)", "SI=F": "Silver (SI=F)", "PL=F": "Platinum (PL=F)",
+    "HG=F": "Copper (HG=F)", "CL=F": "Crude Oil (CL=F)", "NG=F": "Natural Gas (NG=F)",
+}
 TF_LABEL = {"5m": "5 Min", "15m": "15 Min", "1h": "1 Hour", "4h": "4 Hours", "1d": "1 Day"}
 
 # ------------------------------------------------------------------ sidebar
@@ -109,8 +116,12 @@ auth.logout_button()
 if st.session_state.get("_no_pw_warning"):
     st.sidebar.warning("🔓 No password is set yet. BEFORE deploying online, be sure to "
                        "add `app_password` to your secrets (see DEPLOY-ONLINE).")
-market = st.sidebar.selectbox("Market", ["crypto", "stock", "forex"], format_func=lambda m: MK_LABEL[m])
-symbol = st.sidebar.selectbox("Symbol", PRESETS[market])
+market = st.sidebar.selectbox("Market", ["crypto", "stock", "forex", "commodity"],
+                              format_func=lambda m: MK_LABEL[m])
+symbol = st.sidebar.selectbox(
+    "Symbol", PRESETS[market],
+    format_func=lambda s: COMMODITY_NAMES.get(s, s) if market == "commodity" else s,
+)
 custom = st.sidebar.text_input("...or enter your own symbol", "")
 if custom.strip():
     symbol = custom.strip().upper()

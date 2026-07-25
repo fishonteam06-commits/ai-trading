@@ -143,6 +143,15 @@ def get_forex(symbol: str = "EURUSD", interval: str = "1d", limit: int = 200) ->
     return _get_yahoo(yahoo_symbol, interval, limit)
 
 
+def get_commodity(symbol: str = "GC=F", interval: str = "1d", limit: int = 200) -> pd.DataFrame:
+    """
+    Commodity data from Yahoo Finance (futures). Examples:
+    Gold 'GC=F', Silver 'SI=F', Platinum 'PL=F', Copper 'HG=F',
+    Crude Oil 'CL=F', Natural Gas 'NG=F'.
+    """
+    return _get_yahoo(symbol.upper(), interval, limit)
+
+
 def get_live_price(market: str, symbol: str) -> float | None:
     """
     Just the latest price (very fast, lightweight call). For the live ticker.
@@ -186,4 +195,6 @@ def get_data(market: str, symbol: str, interval: str = "1h", limit: int = 200) -
         return get_stock(symbol, interval, limit)
     if market == "forex":
         return get_forex(symbol, interval, limit)
+    if market == "commodity":
+        return get_commodity(symbol, interval, limit)
     raise ValueError(f"Unrecognized market: {market}")
