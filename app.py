@@ -19,7 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data_sources import get_data, get_live_price
+from data_sources import get_data, get_live_price, is_realtime
 from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
@@ -187,7 +187,7 @@ refresh_sec = st.sidebar.select_slider(
     "How often should it update?", options=[3, 5, 10, 15, 30, 60], value=5,
     format_func=lambda s: f"{s} sec",
 )
-if market != "crypto" and refresh_sec < 30:
+if not is_realtime(market, symbol) and refresh_sec < 30:
     st.sidebar.caption("⚠️ Free Stocks/Forex data (Yahoo) is ~15 min delayed and "
                        "rate-limited — 30 sec will be used here. Only crypto is "
                        "truly seconds-level live.")
@@ -208,8 +208,8 @@ with tab_guide:
 
 # ================================================================== TAB 1: DASHBOARD
 with tab_dash:
-    # Effective interval: crypto seconds-level; stock/forex at least 30 sec.
-    _eff = refresh_sec if market == "crypto" else max(refresh_sec, 30)
+    # Effective interval: real-time (Binance) sources can refresh fast; Yahoo min 30 sec.
+    _eff = refresh_sec if is_realtime(market, symbol) else max(refresh_sec, 30)
     _run_every = _eff if live_on else None
 
     # This section auto-updates (only this part, not the whole page -> smooth).
@@ -239,7 +239,7 @@ with tab_dash:
         now = datetime.now().strftime("%H:%M:%S")
         dot = "🟢 LIVE" if live_on else "⚪ paused"
         st.caption(f"{dot} — last update: **{now}** "
-                   f"(every {_eff} sec) · source: {'Binance (real-time)' if market=='crypto' else 'Yahoo (~15 min delay)'}")
+                   f"(every {_eff} sec) · source: {'Binance (real-time)' if is_realtime(market, symbol) else 'Yahoo (~15 min delay)'}")
 
         # ---- OVERALL VERDICT (the single, combined recommendation) ----
         verdict = overall_verdict(df)

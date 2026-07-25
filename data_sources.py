@@ -11,6 +11,7 @@ Open, High, Low, Close, Volume  (index = time).
 """
 
 import re
+import time
 
 import pandas as pd
 import requests
@@ -41,6 +42,20 @@ _YAHOO_ALIAS = {
 def _resolve_yahoo(symbol: str) -> str:
     """Maps a friendly/MT5-style symbol to the ticker Yahoo serves."""
     return _YAHOO_ALIAS.get(symbol.upper(), symbol)
+
+
+# Some symbols are best sourced from Binance (real-time, reliable on the cloud).
+# PAXG is a gold-backed token (~1 troy oz), so PAXGUSDT tracks the gold price.
+_BINANCE_PROXY = {
+    "XAUUSD": "PAXGUSDT",   # Spot Gold  -> PAX Gold on Binance (real-time)
+    "GC=F": "PAXGUSDT",     # Gold futures symbol also routed to real-time gold
+}
+
+
+def is_realtime(market: str, symbol: str) -> bool:
+    """True if the data comes from Binance (real-time), else Yahoo (delayed)."""
+    s = (symbol or "").strip().upper()
+    return market.lower() == "crypto" or s in _BINANCE_PROXY
 
 
 def sanitize_symbol(symbol: str) -> str:
@@ -125,16 +140,28 @@ def get_crypto(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200) 
 
 def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
     if not _HAS_YF:
-        raise RuntimeError(
-            "yfinance is not installed. Run in the terminal: pip install yfinance"
-        )
+        raise RuntimeError("yfinance is not installed. Run: pip install yfinance")
+
     yf_interval, period = _YF_INTERVAL.get(interval, ("1d", "1y"))
-    data = yf.download(
-        _resolve_yahoo(symbol), period=period, interval=yf_interval,
-        progress=False, auto_adjust=True,
-    )
+    resolved = _resolve_yahoo(symbol)
+    data = None
+    # Retry a few times — Yahoo rate-limits shared cloud IPs intermittently.
+    for attempt in range(4):
+        try:
+            data = yf.download(resolved, period=period, interval=yf_interval,
+                               progress=False, auto_adjust=True)
+            if data is not None and not data.empty:
+                break
+        except Exception:
+            data = None
+        time.sleep(1.0 * (attempt + 1))
+
     if data is None or data.empty:
-        raise RuntimeError(f"No data found for '{symbol}'. Please check the symbol again.")
+        raise RuntimeError(
+            f"No data for '{symbol}' right now (Yahoo sometimes rate-limits cloud "
+            "servers). Please try again in a moment — or use Crypto and Gold (XAUUSD), "
+            "which stream live from Binance and are always reliable."
+        )
 
     # yfinance sometimes returns multi-level columns — flatten them
     if isinstance(data.columns, pd.MultiIndex):
@@ -184,6 +211,10 @@ def get_live_price(market: str, symbol: str) -> float | None:
     market = market.lower()
     try:
         symbol = sanitize_symbol(symbol)   # security: block bad input
+        proxy = _BINANCE_PROXY.get(symbol)
+        if proxy:
+            data = _binance_get("/api/v3/ticker/price", {"symbol": proxy})
+            return float(data["price"])
         if market == "crypto":
             data = _binance_get("/api/v3/ticker/price", {"symbol": symbol})
             return float(data["price"])
@@ -212,6 +243,10 @@ def get_data(market: str, symbol: str, interval: str = "1h", limit: int = 200) -
     market = market.lower()
     symbol = sanitize_symbol(symbol)       # security: block bad input
     limit = max(10, min(int(limit), 1000)) # keep limit within a sensible range
+    # Gold (and a few symbols) stream live from Binance instead of delayed Yahoo.
+    proxy = _BINANCE_PROXY.get(symbol)
+    if proxy:
+        return get_crypto(proxy, interval, limit)
     if market == "crypto":
         return get_crypto(symbol, interval, limit)
     if market == "stock":
