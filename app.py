@@ -36,6 +36,12 @@ import guide
 import ai_analysis
 
 
+@st.cache_data(ttl=4, show_spinner=False, max_entries=64)
+def load_indicator_df(market: str, symbol: str, interval: str):
+    """Fetch data + indicators, cached briefly so reruns/tabs are instant & smooth."""
+    return add_all_indicators(get_data(market, symbol, interval, limit=200))
+
+
 def play_alert_sound():
     """Plays a short beep in the browser (on a strong signal)."""
     st.components.v1.html(
@@ -217,7 +223,7 @@ with tab_dash:
     def render_live_dashboard():
         from datetime import datetime
         try:
-            df = add_all_indicators(get_data(market, symbol, interval, limit=200))
+            df = load_indicator_df(market, symbol, interval)
             sig = generate_signal(df)
         except Exception as e:
             st.error(f"Problem fetching data: {e}")
@@ -226,9 +232,9 @@ with tab_dash:
 
         last = df.iloc[-1]
         prev = df.iloc[-2] if len(df) > 1 else last
-        # Latest live price (lightweight call) — fresher than the chart candle
-        live_price = get_live_price(market, symbol)
-        price = live_price if live_price else float(last["Close"])
+        # Use the latest candle's close as the live price (no extra network call -> faster).
+        # For live sources the forming candle already reflects the current price.
+        price = float(last["Close"])
         change_pct = ((price - float(prev["Close"])) / float(prev["Close"]) * 100) if prev["Close"] else 0
         rsi_val = last.get("RSI")
         atr_val = float(last["ATR"]) if pd.notna(last.get("ATR")) else 0
@@ -410,7 +416,9 @@ with tab_dash:
 
         fig.update_layout(height=300 + 130 * len(panels), xaxis_rangeslider_visible=False,
                           margin=dict(l=8, r=68, t=30, b=10), showlegend=True,
-                          legend=dict(orientation="h", y=1.02), dragmode="pan")
+                          legend=dict(orientation="h", y=1.02), dragmode="pan",
+                          uirevision=f"{symbol}-{interval}",  # keep zoom/view on live refresh
+                          transition=dict(duration=0))
         # Price/indicator scale on the RIGHT side (like TradingView / MT5)
         fig.update_yaxes(side="right", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
         st.plotly_chart(fig, use_container_width=True,
@@ -488,7 +496,7 @@ with tab_dash:
         st.warning(f"Enter your **{_prov_label}** API key in the sidebar (AI is optional).")
     elif st.button(f"🤖 Get analysis from {_prov_label} now"):
         with st.spinner(f"Analyzing with {_prov_label}..."):
-            df_ai = add_all_indicators(get_data(market, symbol, interval, limit=200))
+            df_ai = load_indicator_df(market, symbol, interval)
             sig_ai = generate_signal(df_ai)
             st.info(ai_analysis.analyze(ai_provider, market, symbol, sig_ai, api_key))
 
@@ -500,7 +508,7 @@ with tab_strat:
     if st.button("⚡ Run all strategies", type="primary"):
         try:
             with st.spinner("Analyzing strategies..."):
-                df_st = add_all_indicators(get_data(market, symbol, interval, limit=200))
+                df_st = load_indicator_df(market, symbol, interval)
                 res = run_all_strategies(df_st)
         except Exception as e:
             st.error(f"Problem: {e}")
@@ -556,7 +564,7 @@ with tab_bt:
     if st.button("▶️ Run backtest", type="primary"):
         try:
             with st.spinner("Running backtest (this takes a moment)..."):
-                df_bt = add_all_indicators(get_data(market, symbol, interval, limit=200))
+                df_bt = load_indicator_df(market, symbol, interval)
                 res = run_backtest(df_bt, cap)
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Final Equity", f"${res['final_equity']:,.2f}", f"{res['total_return_pct']:+.2f}%")

@@ -145,8 +145,8 @@ def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
     yf_interval, period = _YF_INTERVAL.get(interval, ("1d", "1y"))
     resolved = _resolve_yahoo(symbol)
     data = None
-    # Retry a few times — Yahoo rate-limits shared cloud IPs intermittently.
-    for attempt in range(4):
+    # Retry a few times (short) — Yahoo rate-limits shared cloud IPs intermittently.
+    for attempt in range(3):
         try:
             data = yf.download(resolved, period=period, interval=yf_interval,
                                progress=False, auto_adjust=True)
@@ -154,7 +154,7 @@ def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
                 break
         except Exception:
             data = None
-        time.sleep(1.0 * (attempt + 1))
+        time.sleep(0.6)
 
     if data is None or data.empty:
         raise RuntimeError(
