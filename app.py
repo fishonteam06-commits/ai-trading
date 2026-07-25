@@ -337,26 +337,17 @@ with tab_dash:
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["Close"], name="Price",
                                      line=dict(color="#2ecc71", width=2)), row=1, col=1)
 
-        # -- Prediction ARROW above the candle (direction of the next candle) --
+        # -- Prediction badge (top-left corner) — never covers the candles --
         if pred["direction"] in ("BUY", "SELL"):
-            last_x = plot_df.index[-1]
-            hi = float(plot_df["High"].iloc[-1])
             if pred["direction"] == "BUY":
-                fig.add_annotation(
-                    x=last_x, y=hi, row=1, col=1,
-                    text=f"▲ BUY {pred['prob_up']}%",
-                    showarrow=True, arrowhead=2, arrowsize=1.6, arrowwidth=2.5,
-                    arrowcolor="#2ecc71", ax=0, ay=-45,
-                    font=dict(color="#2ecc71", size=13),
-                    bgcolor="rgba(0,0,0,0.55)", bordercolor="#2ecc71", borderwidth=1)
+                badge, bclr = f"▲ Prediction: BUY {pred['prob_up']}%", "#2ecc71"
             else:
-                fig.add_annotation(
-                    x=last_x, y=hi, row=1, col=1,
-                    text=f"▼ SELL {pred['prob_down']}%",
-                    showarrow=True, arrowhead=2, arrowsize=1.6, arrowwidth=2.5,
-                    arrowcolor="#e74c3c", ax=0, ay=-45,
-                    font=dict(color="#e74c3c", size=13),
-                    bgcolor="rgba(0,0,0,0.55)", bordercolor="#e74c3c", borderwidth=1)
+                badge, bclr = f"▼ Prediction: SELL {pred['prob_down']}%", "#e74c3c"
+            fig.add_annotation(
+                xref="x domain", yref="y domain", x=0.01, y=0.98,
+                xanchor="left", yanchor="top", text=badge, showarrow=False,
+                font=dict(color="white", size=12), bgcolor=bclr,
+                borderpad=4, opacity=0.92)
 
         # -- overlays on price --
         overlays = []
