@@ -1,0 +1,19 @@
+[theme]
+base = "dark"
+primaryColor = "#00d678"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#1a1d24"
+textColor = "#fafafa"
+
+[server]
+headless = true
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Hide the Streamlit toolbar (hamburger menu, "Manage app", Deploy) from visitors.
+# Only YOU (the owner) manage the app from share.streamlit.io — customers see a clean app.
+toolbarMode = "minimal"
+showErrorDetails = true

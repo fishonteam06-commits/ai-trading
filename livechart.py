@@ -29,11 +29,12 @@ def render_live_chart(binance_symbol: str, interval: str, height: int = 560,
         "predColor": pred_color,
     }
     html = _TEMPLATE.replace("__CFG__", json.dumps(cfg)).replace("__CDN__", _PLOTLY_CDN)
-    components.html(html, height=height + 10)
+    components.html(html, height=height + 56)
 
 
 _TEMPLATE = """
 <div id="err" style="color:#e74c3c;font-family:sans-serif;font-size:13px;padding:6px;"></div>
+<div id="readout" style="font-family:sans-serif;font-size:13px;padding:2px 6px;color:#cfd3d8;"></div>
 <div id="chart" style="width:100%;height:__HEIGHTPX__;"></div>
 <script src="__CDN__"></script>
 <script>
@@ -64,6 +65,19 @@ async function update(){
   for(const row of k){t.push(new Date(row[0]));o.push(+row[1]);hi.push(+row[2]);lo.push(+row[3]);c.push(+row[4]);v.push(+row[5]);vc.push((+row[4]>=+row[1])?'#2ecc71':'#e74c3c');}
   const last=c[c.length-1];
   const s20=sma(c,20), s50=sma(c,50), rs=rsi(c,14), bb=bands(c,20,2);
+
+  // --- Live indicator readout (values + simple signal) ---
+  const rNow = rs[rs.length-1];
+  const prev = c[c.length-2] || last;
+  const chg = ((last-prev)/prev*100);
+  const trend = (s20[s20.length-1]>s50[s50.length-1]) ? "🟢 Uptrend" : "🔴 Downtrend";
+  let rTag = "neutral"; if(rNow!=null){ if(rNow>70) rTag="overbought"; else if(rNow<30) rTag="oversold"; }
+  const fmt = (x)=> x==null? "—" : x.toLocaleString(undefined,{maximumFractionDigits:2});
+  document.getElementById('readout').innerHTML =
+     `<b>${last.toLocaleString(undefined,{maximumFractionDigits:4})}</b> `
+    +`<span style="color:${chg>=0?'#2ecc71':'#e74c3c'}">(${chg>=0?'+':''}${chg.toFixed(2)}%)</span>`
+    +` &nbsp;·&nbsp; RSI ${fmt(rNow)} (${rTag}) &nbsp;·&nbsp; SMA20 ${fmt(s20[s20.length-1])}`
+    +` &nbsp;·&nbsp; SMA50 ${fmt(s50[s50.length-1])} &nbsp;·&nbsp; ${trend}`;
 
   const traces=[
     {x:t,open:o,high:hi,low:lo,close:c,type:'candlestick',name:'Price',xaxis:'x',yaxis:'y',
