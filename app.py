@@ -81,15 +81,11 @@ st.markdown(
     <meta name="apple-mobile-web-app-title" content="AI Trading">
     <meta name="theme-color" content="#0e1117">
     <style>
-      /* Clean interface for customers: hide Streamlit menu / toolbar / footer */
+      /* Clean interface for customers (toolbar/menu also hidden via config toolbarMode) */
       #MainMenu {visibility: hidden;}
-      [data-testid="stToolbar"] {display: none !important;}
-      [data-testid="stDecoration"] {display: none !important;}
-      [data-testid="stStatusWidget"] {display: none !important;}
-      header [data-testid="stHeader"] {background: transparent;}
       footer {visibility: hidden; height: 0;}
-      a[href*="streamlit.io/cloud"], .viewerBadge_container__1QSob,
-      [class*="viewerBadge"] {display: none !important;}
+      [data-testid="stStatusWidget"] {display: none !important;}
+      [data-testid="stDecoration"] {display: none !important;}
 
       /* Adjustments for phones (small screens) */
       @media (max-width: 640px) {
