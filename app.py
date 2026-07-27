@@ -72,44 +72,26 @@ def play_alert_sound():
 
 st.set_page_config(page_title="AI Trading Assistant", page_icon="📈", layout="wide")
 
-# ---- For a better look on mobile / phones (plus "Add to Home Screen" support) ----
-st.markdown(
-    """
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="AI Trading">
-    <meta name="theme-color" content="#0e1117">
-    <style>
-      /* Clean interface for customers (toolbar/menu also hidden via config toolbarMode) */
-      #MainMenu {visibility: hidden;}
-      footer {visibility: hidden; height: 0;}
-      [data-testid="stStatusWidget"] {display: none !important;}
-      [data-testid="stDecoration"] {display: none !important;}
-
-      /* Adjustments for phones (small screens) */
-      @media (max-width: 640px) {
-        .block-container { padding: 0.6rem 0.7rem 3rem 0.7rem !important; }
-        h1 { font-size: 1.5rem !important; }
-        h2 { font-size: 1.2rem !important; }
-        h3 { font-size: 1.05rem !important; }
-        /* Shrink metrics so the numbers don't get clipped */
-        [data-testid="stMetricValue"] { font-size: 1.15rem !important; }
-        [data-testid="stMetricLabel"] { font-size: 0.72rem !important; }
-        /* Make the tabs horizontally scrollable */
-        .stTabs [data-baseweb="tab-list"] {
-          overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none;
-        }
-        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
-        .stTabs [data-baseweb="tab"] { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
-        /* Make buttons easy to tap (touch-friendly) */
-        .stButton button { width: 100%; min-height: 2.6rem; }
-        /* Let tables scroll horizontally */
-        [data-testid="stDataFrame"] { overflow-x: auto; }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# ---- Clean UI + mobile tweaks. Use st.html (NOT markdown) so the CSS is never
+#      broken by markdown blank-line/indentation handling on older Streamlit. ----
+st.html(
+    "<style>"
+    "#MainMenu{visibility:hidden;}"
+    "footer{visibility:hidden;height:0;}"
+    '[data-testid="stStatusWidget"]{display:none !important;}'
+    '[data-testid="stDecoration"]{display:none !important;}'
+    "@media (max-width:640px){"
+    ".block-container{padding:0.6rem 0.7rem 3rem 0.7rem !important;}"
+    "h1{font-size:1.5rem !important;}h2{font-size:1.2rem !important;}h3{font-size:1.05rem !important;}"
+    '[data-testid="stMetricValue"]{font-size:1.15rem !important;}'
+    '[data-testid="stMetricLabel"]{font-size:0.72rem !important;}'
+    '.stTabs [data-baseweb="tab-list"]{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;}'
+    '.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar{display:none;}'
+    '.stTabs [data-baseweb="tab"]{padding:0.4rem 0.6rem;font-size:0.85rem;}'
+    ".stButton button{width:100%;min-height:2.6rem;}"
+    '[data-testid="stDataFrame"]{overflow-x:auto;}'
+    "}"
+    "</style>"
 )
 
 # ---- SECURITY: login gate (set a password before deploying) ----
