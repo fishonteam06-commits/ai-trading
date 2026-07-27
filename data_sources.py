@@ -58,6 +58,17 @@ def is_realtime(market: str, symbol: str) -> bool:
     return market.lower() == "crypto" or s in _BINANCE_PROXY
 
 
+def binance_symbol_for(market: str, symbol: str) -> str | None:
+    """The Binance trading pair for this symbol (for the live client-side chart),
+    or None if it isn't a Binance-sourced symbol."""
+    s = (symbol or "").strip().upper()
+    if s in _BINANCE_PROXY:
+        return _BINANCE_PROXY[s]
+    if market.lower() == "crypto":
+        return s
+    return None
+
+
 def market_status(market: str, symbol: str) -> tuple[bool, str]:
     """
     Is the market open right now? Returns (is_open, label).

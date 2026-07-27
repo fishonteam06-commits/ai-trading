@@ -19,7 +19,9 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data_sources import get_data, get_live_price, is_realtime, market_status
+from data_sources import (get_data, get_live_price, is_realtime, market_status,
+                          binance_symbol_for)
+from livechart import render_live_chart
 from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
@@ -224,6 +226,26 @@ with tab_dash:
     _eff = refresh_sec if is_realtime(market, symbol) else max(refresh_sec, 30)
     _run_every = _eff if live_on else None
 
+    # --- LIVE client-side chart (Binance-sourced symbols) — self-updates, no reload ---
+    _bsym = binance_symbol_for(market, symbol)
+    use_live_chart = _bsym is not None
+    if use_live_chart:
+        try:
+            _pdf = load_indicator_df(market, symbol, interval)
+            _pr = predict_next_candle(_pdf)
+            if _pr["direction"] == "BUY":
+                _pt, _pc = f"▲ {_pr['prob_up']}%", "#2ecc71"
+            elif _pr["direction"] == "SELL":
+                _pt, _pc = f"▼ {_pr['prob_down']}%", "#e74c3c"
+            else:
+                _pt, _pc = "", "#888"
+        except Exception:
+            _pt, _pc = "", "#888"
+        st.subheader(f"{symbol} — Live Chart (real-time · zoom stays on refresh)")
+        render_live_chart(_bsym, interval, pred_text=_pt, pred_color=_pc)
+        st.caption("📡 This chart streams live from Binance **in your browser** and keeps "
+                   "your zoom/pan when it updates — no full reload. Signals & prediction below.")
+
     # This section auto-updates (only this part, not the whole page -> smooth).
     @st.fragment(run_every=_run_every)
     def render_live_dashboard():
@@ -328,128 +350,129 @@ with tab_dash:
                        "The market can reverse at any time. Always set a stop-loss.")
         st.markdown("---")
 
-        # ---- Chart (dynamic: based on the sidebar toggles) ----
-        st.subheader(f"{symbol} — {chart_type} + Indicators")
-        plot_df = df.tail(120)
+        if not use_live_chart:  # server-side chart only when NOT using the live client chart
+            # ---- Chart (dynamic: based on the sidebar toggles) ----
+            st.subheader(f"{symbol} — {chart_type} + Indicators")
+            plot_df = df.tail(120)
 
-        # Lower panels (oscillators) selected by the user
-        panels = [p for p in ["Volume", "RSI", "MACD", "Stochastic"] if p in show_ind]
-        n_rows = 1 + len(panels)
-        heights = [0.55] + [round(0.45 / len(panels), 3)] * len(panels) if panels else [1.0]
-        titles = ["Price"] + panels
-        fig = make_subplots(rows=n_rows, cols=1, shared_xaxes=True,
-                            vertical_spacing=0.03, row_heights=heights,
-                            subplot_titles=titles)
+            # Lower panels (oscillators) selected by the user
+            panels = [p for p in ["Volume", "RSI", "MACD", "Stochastic"] if p in show_ind]
+            n_rows = 1 + len(panels)
+            heights = [0.55] + [round(0.45 / len(panels), 3)] * len(panels) if panels else [1.0]
+            titles = ["Price"] + panels
+            fig = make_subplots(rows=n_rows, cols=1, shared_xaxes=True,
+                                vertical_spacing=0.03, row_heights=heights,
+                                subplot_titles=titles)
 
-        # -- main price (candlestick or line) --
-        if chart_type == "Candlestick":
-            fig.add_trace(go.Candlestick(
-                x=plot_df.index, open=plot_df["Open"], high=plot_df["High"],
-                low=plot_df["Low"], close=plot_df["Close"], name="Price"), row=1, col=1)
-        else:
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["Close"], name="Price",
-                                     line=dict(color="#2ecc71", width=2)), row=1, col=1)
-
-        # -- Current price line (dotted, across the chart) + price tag on the right --
-        _pcol = "#2ecc71" if price >= float(prev["Close"]) else "#e74c3c"
-        fig.add_hline(
-            y=price, line_dash="dot", line_width=1, line_color=_pcol,
-            annotation_text=" " + f"{price:,.4f}".rstrip("0").rstrip(".") + " ",
-            annotation_position="right",
-            annotation_font=dict(color="white", size=11),
-            annotation_bgcolor=_pcol, row=1, col=1)
-
-        # -- Small prediction arrow that sits just ABOVE the latest candle and
-        #    follows it up/down as the price moves (never covers the candle body) --
-        if pred["direction"] in ("BUY", "SELL"):
-            last_x = plot_df.index[-1]
-            hi = float(plot_df["High"].iloc[-1])
-            rng = float(plot_df["High"].max() - plot_df["Low"].min()) or 1.0
-            gap = rng * 0.015                      # small gap above the candle
-            if pred["direction"] == "BUY":
-                fig.add_annotation(
-                    x=last_x, y=hi + gap, row=1, col=1,
-                    text=f"▲{pred['prob_up']}%",
-                    showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
-                    arrowcolor="#2ecc71", ax=0, ay=-16,
-                    font=dict(color="#2ecc71", size=10),
-                    bgcolor="rgba(0,0,0,0.45)", borderpad=1)
+            # -- main price (candlestick or line) --
+            if chart_type == "Candlestick":
+                fig.add_trace(go.Candlestick(
+                    x=plot_df.index, open=plot_df["Open"], high=plot_df["High"],
+                    low=plot_df["Low"], close=plot_df["Close"], name="Price"), row=1, col=1)
             else:
-                fig.add_annotation(
-                    x=last_x, y=hi + gap, row=1, col=1,
-                    text=f"▼{pred['prob_down']}%",
-                    showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
-                    arrowcolor="#e74c3c", ax=0, ay=-16,
-                    font=dict(color="#e74c3c", size=10),
-                    bgcolor="rgba(0,0,0,0.45)", borderpad=1)
+                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["Close"], name="Price",
+                                         line=dict(color="#2ecc71", width=2)), row=1, col=1)
 
-        # -- overlays on price --
-        overlays = []
-        if "Bollinger" in show_ind:
-            overlays += [("BB_UPPER", "#888"), ("BB_LOWER", "#888")]
-        if "SMA20" in show_ind:
-            overlays.append(("SMA20", "#f5a623"))
-        if "SMA50" in show_ind:
-            overlays.append(("SMA50", "#4a90e2"))
-        if "EMA9/21" in show_ind:
-            overlays += [("EMA9", "#e67e22"), ("EMA21", "#9b59b6")]
-        if "VWAP" in show_ind:
-            overlays.append(("VWAP", "#1abc9c"))
-        for col, clr in overlays:
-            if col in plot_df:
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df[col], name=col,
-                                         line=dict(width=1, color=clr)), row=1, col=1)
+            # -- Current price line (dotted, across the chart) + price tag on the right --
+            _pcol = "#2ecc71" if price >= float(prev["Close"]) else "#e74c3c"
+            fig.add_hline(
+                y=price, line_dash="dot", line_width=1, line_color=_pcol,
+                annotation_text=" " + f"{price:,.4f}".rstrip("0").rstrip(".") + " ",
+                annotation_position="right",
+                annotation_font=dict(color="white", size=11),
+                annotation_bgcolor=_pcol, row=1, col=1)
 
-        # -- oscillator panels --
-        r = 2
-        for p in panels:
-            if p == "Volume":
-                vcolors = ["#2ecc71" if c >= o else "#e74c3c"
-                           for o, c in zip(plot_df["Open"], plot_df["Close"])]
-                fig.add_trace(go.Bar(x=plot_df.index, y=plot_df["Volume"], name="Volume",
-                                     marker_color=vcolors), row=r, col=1)
-            elif p == "RSI":
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["RSI"], name="RSI",
-                                         line=dict(color="#9b59b6")), row=r, col=1)
-                fig.add_hline(y=70, line_dash="dash", line_color="red", row=r, col=1)
-                fig.add_hline(y=30, line_dash="dash", line_color="green", row=r, col=1)
-            elif p == "MACD":
-                fig.add_trace(go.Bar(x=plot_df.index, y=plot_df["MACD_HIST"], name="Hist",
-                                     marker_color="#7f8c8d"), row=r, col=1)
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["MACD"], name="MACD",
-                                         line=dict(color="#2ecc71")), row=r, col=1)
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["MACD_SIGNAL"], name="Signal",
-                                         line=dict(color="#e74c3c")), row=r, col=1)
-            elif p == "Stochastic":
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["STOCH_K"], name="%K",
-                                         line=dict(color="#3498db")), row=r, col=1)
-                fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["STOCH_D"], name="%D",
-                                         line=dict(color="#e67e22")), row=r, col=1)
-                fig.add_hline(y=80, line_dash="dash", line_color="red", row=r, col=1)
-                fig.add_hline(y=20, line_dash="dash", line_color="green", row=r, col=1)
-            r += 1
+            # -- Small prediction arrow that sits just ABOVE the latest candle and
+            #    follows it up/down as the price moves (never covers the candle body) --
+            if pred["direction"] in ("BUY", "SELL"):
+                last_x = plot_df.index[-1]
+                hi = float(plot_df["High"].iloc[-1])
+                rng = float(plot_df["High"].max() - plot_df["Low"].min()) or 1.0
+                gap = rng * 0.015                      # small gap above the candle
+                if pred["direction"] == "BUY":
+                    fig.add_annotation(
+                        x=last_x, y=hi + gap, row=1, col=1,
+                        text=f"▲{pred['prob_up']}%",
+                        showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
+                        arrowcolor="#2ecc71", ax=0, ay=-16,
+                        font=dict(color="#2ecc71", size=10),
+                        bgcolor="rgba(0,0,0,0.45)", borderpad=1)
+                else:
+                    fig.add_annotation(
+                        x=last_x, y=hi + gap, row=1, col=1,
+                        text=f"▼{pred['prob_down']}%",
+                        showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
+                        arrowcolor="#e74c3c", ax=0, ay=-16,
+                        font=dict(color="#e74c3c", size=10),
+                        bgcolor="rgba(0,0,0,0.45)", borderpad=1)
 
-        # -- Current price level line (like TradingView's price line) --
-        price_line_color = "#2ecc71" if change_pct >= 0 else "#e74c3c"
-        fig.add_hline(
-            y=price, line_dash="dot", line_width=1.2, line_color=price_line_color,
-            annotation_text=f" {price:,.4f}".rstrip("0").rstrip("."),
-            annotation_position="right",
-            annotation_font_color="#ffffff",
-            annotation_bgcolor=price_line_color,
-            row=1, col=1)
+            # -- overlays on price --
+            overlays = []
+            if "Bollinger" in show_ind:
+                overlays += [("BB_UPPER", "#888"), ("BB_LOWER", "#888")]
+            if "SMA20" in show_ind:
+                overlays.append(("SMA20", "#f5a623"))
+            if "SMA50" in show_ind:
+                overlays.append(("SMA50", "#4a90e2"))
+            if "EMA9/21" in show_ind:
+                overlays += [("EMA9", "#e67e22"), ("EMA21", "#9b59b6")]
+            if "VWAP" in show_ind:
+                overlays.append(("VWAP", "#1abc9c"))
+            for col, clr in overlays:
+                if col in plot_df:
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df[col], name=col,
+                                             line=dict(width=1, color=clr)), row=1, col=1)
 
-        fig.update_layout(height=300 + 130 * len(panels), xaxis_rangeslider_visible=False,
-                          margin=dict(l=8, r=68, t=30, b=10), showlegend=True,
-                          legend=dict(orientation="h", y=1.02), dragmode="pan",
-                          uirevision=f"{symbol}-{interval}",  # keep zoom/view on live refresh
-                          transition=dict(duration=0))
-        # Price/indicator scale on the RIGHT side (like TradingView / MT5)
-        fig.update_yaxes(side="right", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
-        # Stable key + uirevision => Plotly updates in place on refresh (AJAX-like),
-        # so your zoom/pan is preserved instead of the whole chart reloading.
-        st.plotly_chart(fig, use_container_width=True, key="dashboard_chart",
-                        config={"scrollZoom": True, "displaylogo": False})
+            # -- oscillator panels --
+            r = 2
+            for p in panels:
+                if p == "Volume":
+                    vcolors = ["#2ecc71" if c >= o else "#e74c3c"
+                               for o, c in zip(plot_df["Open"], plot_df["Close"])]
+                    fig.add_trace(go.Bar(x=plot_df.index, y=plot_df["Volume"], name="Volume",
+                                         marker_color=vcolors), row=r, col=1)
+                elif p == "RSI":
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["RSI"], name="RSI",
+                                             line=dict(color="#9b59b6")), row=r, col=1)
+                    fig.add_hline(y=70, line_dash="dash", line_color="red", row=r, col=1)
+                    fig.add_hline(y=30, line_dash="dash", line_color="green", row=r, col=1)
+                elif p == "MACD":
+                    fig.add_trace(go.Bar(x=plot_df.index, y=plot_df["MACD_HIST"], name="Hist",
+                                         marker_color="#7f8c8d"), row=r, col=1)
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["MACD"], name="MACD",
+                                             line=dict(color="#2ecc71")), row=r, col=1)
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["MACD_SIGNAL"], name="Signal",
+                                             line=dict(color="#e74c3c")), row=r, col=1)
+                elif p == "Stochastic":
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["STOCH_K"], name="%K",
+                                             line=dict(color="#3498db")), row=r, col=1)
+                    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["STOCH_D"], name="%D",
+                                             line=dict(color="#e67e22")), row=r, col=1)
+                    fig.add_hline(y=80, line_dash="dash", line_color="red", row=r, col=1)
+                    fig.add_hline(y=20, line_dash="dash", line_color="green", row=r, col=1)
+                r += 1
+
+            # -- Current price level line (like TradingView's price line) --
+            price_line_color = "#2ecc71" if change_pct >= 0 else "#e74c3c"
+            fig.add_hline(
+                y=price, line_dash="dot", line_width=1.2, line_color=price_line_color,
+                annotation_text=f" {price:,.4f}".rstrip("0").rstrip("."),
+                annotation_position="right",
+                annotation_font_color="#ffffff",
+                annotation_bgcolor=price_line_color,
+                row=1, col=1)
+
+            fig.update_layout(height=300 + 130 * len(panels), xaxis_rangeslider_visible=False,
+                              margin=dict(l=8, r=68, t=30, b=10), showlegend=True,
+                              legend=dict(orientation="h", y=1.02), dragmode="pan",
+                              uirevision=f"{symbol}-{interval}",  # keep zoom/view on live refresh
+                              transition=dict(duration=0))
+            # Price/indicator scale on the RIGHT side (like TradingView / MT5)
+            fig.update_yaxes(side="right", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
+            # Stable key + uirevision => Plotly updates in place on refresh (AJAX-like),
+            # so your zoom/pan is preserved instead of the whole chart reloading.
+            st.plotly_chart(fig, use_container_width=True, key="dashboard_chart",
+                            config={"scrollZoom": True, "displaylogo": False})
 
         # ---- Candlestick patterns (auto-detect) ----
         pats = detect_patterns(df)
