@@ -99,7 +99,15 @@ async function update(){
   const annotations=[
     {xref:'paper',x:1,y:last,yref:'y',xanchor:'left',text:' '+last.toLocaleString(undefined,{maximumFractionDigits:4})+' ',showarrow:false,font:{color:'#fff',size:11},bgcolor:pcol}
   ];
-  if(CFG.predText){annotations.push({xref:'x domain',x:0.01,y:0.99,yref:'y domain',xanchor:'left',yanchor:'top',text:CFG.predText,showarrow:false,font:{color:'#fff',size:12},bgcolor:CFG.predColor,borderpad:3});}
+  if(CFG.predText){
+    // Small arrow that sits just ABOVE the latest candle and follows it up/down
+    // (re-anchored to the newest candle on every update, so it tracks the price).
+    const gap=(Math.max.apply(null,hi)-Math.min.apply(null,lo))*0.02 || 0;
+    annotations.push({x:t[t.length-1],y:hi[hi.length-1]+gap,xref:'x',yref:'y',
+      text:CFG.predText,showarrow:true,arrowhead:2,arrowsize:0.9,arrowwidth:1.4,
+      arrowcolor:CFG.predColor,ax:0,ay:-22,font:{color:'#fff',size:11},
+      bgcolor:CFG.predColor,borderpad:2});
+  }
 
   const layout={
     height:HEIGHT, margin:{l:6,r:66,t:6,b:20},
