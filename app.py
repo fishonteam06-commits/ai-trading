@@ -15,6 +15,7 @@ and is NOT financial advice. Trading carries a real risk of losing money.
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -52,7 +53,7 @@ def get_prediction_accuracy(market: str, symbol: str, interval: str):
 
 def play_alert_sound():
     """Plays a short beep in the browser (on a strong signal)."""
-    st.components.v1.html(
+    components.html(
         """
         <script>
         try {
