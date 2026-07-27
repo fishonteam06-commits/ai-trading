@@ -21,6 +21,32 @@ capital on it. Always use a stop-loss.
 import pandas as pd
 
 
+def prediction_accuracy(df: pd.DataFrame, lookback: int = 120) -> dict:
+    """
+    Honest backtest: for each recent candle, run the predictor on the data up to
+    that point and check whether the NEXT candle actually moved that way.
+    Returns {hits, total, accuracy%}. Indicators are causal, so there's no look-ahead.
+    """
+    n = len(df)
+    if n < 70:
+        return {"hits": 0, "total": 0, "accuracy": 0}
+    start = max(60, n - lookback)
+    hits = 0
+    total = 0
+    closes = df["Close"].values
+    for i in range(start, n - 1):
+        p = predict_next_candle(df.iloc[: i + 1])
+        if p["direction"] == "NEUTRAL":
+            continue
+        actual_up = closes[i + 1] > closes[i]
+        pred_up = p["direction"] == "BUY"
+        if pred_up == actual_up:
+            hits += 1
+        total += 1
+    return {"hits": hits, "total": total,
+            "accuracy": round(hits / total * 100, 1) if total else 0}
+
+
 def predict_next_candle(df: pd.DataFrame) -> dict:
     """
     Estimates the direction of the next candle from the most recent candles.
@@ -144,9 +170,11 @@ def predict_next_candle(df: pd.DataFrame) -> dict:
     prob_up = max(5, min(95, prob_up))
     prob_down = 100 - prob_up
 
-    if prob_up >= 58:
+    # Only call a direction on stronger conviction (>=62/<=38); otherwise NEUTRAL.
+    # Being selective means fewer, higher-quality calls instead of coin-flip guesses.
+    if prob_up >= 62:
         direction = "BUY"
-    elif prob_up <= 42:
+    elif prob_up <= 38:
         direction = "SELL"
     else:
         direction = "NEUTRAL"

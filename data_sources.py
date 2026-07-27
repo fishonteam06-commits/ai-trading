@@ -58,6 +58,39 @@ def is_realtime(market: str, symbol: str) -> bool:
     return market.lower() == "crypto" or s in _BINANCE_PROXY
 
 
+def market_status(market: str, symbol: str) -> tuple[bool, str]:
+    """
+    Is the market open right now? Returns (is_open, label).
+    - Crypto and PAXG-gold (XAUUSD/GC=F) trade 24/7.
+    - Forex / metals / indices (via Yahoo) close on the weekend.
+    - US stocks trade roughly Mon-Fri 13:30-20:00 UTC.
+    This is why on a Sunday nothing updates — the market is simply closed.
+    """
+    from datetime import datetime, timezone
+    if is_realtime(market, symbol):
+        return True, "🟢 OPEN — trades 24/7"
+
+    now = datetime.now(timezone.utc)
+    wd = now.weekday()          # Mon=0 ... Sat=5, Sun=6
+    minutes = now.hour * 60 + now.minute
+
+    if market.lower() == "stock":
+        if wd >= 5:
+            return False, "🔴 CLOSED — weekend (US stocks reopen Monday)"
+        if 13 * 60 + 30 <= minutes <= 20 * 60:
+            return True, "🟢 OPEN — US market hours"
+        return False, "🔴 CLOSED — outside US market hours (approx 13:30–20:00 UTC)"
+
+    # Forex / commodities / indices: open Sunday ~22:00 UTC to Friday ~22:00 UTC
+    if wd == 5:
+        return False, "🔴 CLOSED — weekend (Saturday). Reopens Sunday ~22:00 UTC"
+    if wd == 6 and minutes < 22 * 60:
+        return False, "🔴 CLOSED — weekend (Sunday). Reopens ~22:00 UTC"
+    if wd == 4 and minutes >= 22 * 60:
+        return False, "🔴 CLOSED — weekend just started (Friday close)"
+    return True, "🟢 OPEN"
+
+
 def sanitize_symbol(symbol: str) -> str:
     """
     Cleans the symbol — only valid characters. Blocks invalid/dangerous input

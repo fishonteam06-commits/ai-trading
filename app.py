@@ -19,11 +19,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data_sources import get_data, get_live_price, is_realtime
+from data_sources import get_data, get_live_price, is_realtime, market_status
 from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
-from predictor import predict_next_candle
+from predictor import predict_next_candle, prediction_accuracy
 from strategies import run_all_strategies
 from verdict import overall_verdict
 import wisdom
@@ -40,6 +40,12 @@ import ai_analysis
 def load_indicator_df(market: str, symbol: str, interval: str):
     """Fetch data + indicators, cached briefly so reruns/tabs are instant & smooth."""
     return add_all_indicators(get_data(market, symbol, interval, limit=200))
+
+
+@st.cache_data(ttl=300, show_spinner=False, max_entries=32)
+def get_prediction_accuracy(market: str, symbol: str, interval: str):
+    """Historical hit-rate of the next-candle prediction (cached ~5 min)."""
+    return prediction_accuracy(load_indicator_df(market, symbol, interval))
 
 
 def play_alert_sound():
@@ -241,11 +247,18 @@ with tab_dash:
         action = sig["action"]
         color = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}[action]
 
-        # live status line
+        # live status line + market open/closed
         now = datetime.now().strftime("%H:%M:%S")
         dot = "🟢 LIVE" if live_on else "⚪ paused"
+        is_open, mkt_label = market_status(market, symbol)
         st.caption(f"{dot} — last update: **{now}** "
                    f"(every {_eff} sec) · source: {'Binance (real-time)' if is_realtime(market, symbol) else 'Yahoo (~15 min delay)'}")
+        if is_open:
+            st.caption(f"Market status: **{mkt_label}**")
+        else:
+            st.warning(f"⛔ Market status: **{mkt_label}** — prices are frozen at the last "
+                       "close and won't move until the market reopens. (This is normal on "
+                       "weekends for Gold/Forex/Stocks; Crypto trades 24/7.)")
 
         # ---- OVERALL VERDICT (the single, combined recommendation) ----
         verdict = overall_verdict(df)
@@ -433,7 +446,9 @@ with tab_dash:
                           transition=dict(duration=0))
         # Price/indicator scale on the RIGHT side (like TradingView / MT5)
         fig.update_yaxes(side="right", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
-        st.plotly_chart(fig, use_container_width=True,
+        # Stable key + uirevision => Plotly updates in place on refresh (AJAX-like),
+        # so your zoom/pan is preserved instead of the whole chart reloading.
+        st.plotly_chart(fig, use_container_width=True, key="dashboard_chart",
                         config={"scrollZoom": True, "displaylogo": False})
 
         # ---- Candlestick patterns (auto-detect) ----
@@ -539,6 +554,23 @@ with tab_binary:
         b2.metric("🔴 DOWN (PUT)", f"{pb['prob_down']}%")
         st.progress(pb["prob_up"] / 100,
                     text=f"UP {pb['prob_up']}%  vs  DOWN {pb['prob_down']}%")
+
+        # -- Honest historical accuracy for this symbol/timeframe --
+        try:
+            acc = get_prediction_accuracy(market, symbol, interval)
+        except Exception:
+            acc = {"total": 0}
+        if acc.get("total"):
+            a = acc["accuracy"]
+            st.metric("📊 Historical accuracy (this symbol & timeframe)",
+                      f"{a}%", f"{acc['hits']}/{acc['total']} calls correct")
+            if a >= 55:
+                st.caption("This model has been right more often than a coin flip here — "
+                           "but past results never guarantee the future.")
+            else:
+                st.caption("⚠️ Here the model is near (or below) a coin flip — treat its "
+                           "calls with extra caution on this symbol/timeframe.")
+
         with st.expander("🔍 Why this call? (reasons)"):
             for r in pb["reasons"]:
                 st.markdown(f"- {r}")
