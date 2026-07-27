@@ -152,7 +152,7 @@ if st.session_state.get("_no_pw_warning"):
     st.sidebar.warning("🔓 No password is set yet. BEFORE deploying online, be sure to "
                        "add `app_password` to your secrets (see DEPLOY-ONLINE).")
 market = st.sidebar.selectbox("Market", ["crypto", "stock", "forex", "commodity"],
-                              format_func=lambda m: MK_LABEL[m])
+                              index=3, format_func=lambda m: MK_LABEL[m])
 symbol = st.sidebar.selectbox(
     "Symbol", PRESETS[market],
     format_func=lambda s: SYMBOL_NAMES.get(market, {}).get(s, s),
@@ -161,7 +161,7 @@ custom = st.sidebar.text_input("...or enter your own symbol", "")
 if custom.strip():
     symbol = custom.strip().upper()
 interval = st.sidebar.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "4h", "1d"],
-                                index=3, format_func=lambda i: TF_LABEL[i])
+                                index=2, format_func=lambda i: TF_LABEL[i])
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📈 Chart")
@@ -203,9 +203,9 @@ sound_on = st.sidebar.checkbox("🔔 Beep on a strong signal", value=True)
 st.title("📈 AI Trading Assistant")
 st.caption("For educational purposes only — this tool does not place trades and does not provide financial advice.")
 
-tab_guide, tab_dash, tab_strat, tab_scan, tab_bt, tab_risk, tab_paper = st.tabs(
-    ["📚 Learn", "📊 Dashboard", "🎓 Strategies", "🔍 Scanner", "🧪 Backtest",
-     "🛡️ Risk Calculator", "📝 Paper Trade"]
+tab_guide, tab_dash, tab_binary, tab_strat, tab_scan, tab_bt, tab_risk, tab_paper = st.tabs(
+    ["📚 Learn", "📊 Dashboard", "🎯 Binary", "🎓 Strategies", "🔍 Scanner",
+     "🧪 Backtest", "🛡️ Risk Calculator", "📝 Paper Trade"]
 )
 
 # ================================================================== TAB 0: GUIDE
@@ -337,17 +337,38 @@ with tab_dash:
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df["Close"], name="Price",
                                      line=dict(color="#2ecc71", width=2)), row=1, col=1)
 
-        # -- Prediction badge (top-left corner) — never covers the candles --
+        # -- Current price line (dotted, across the chart) + price tag on the right --
+        _pcol = "#2ecc71" if price >= float(prev["Close"]) else "#e74c3c"
+        fig.add_hline(
+            y=price, line_dash="dot", line_width=1, line_color=_pcol,
+            annotation_text=" " + f"{price:,.4f}".rstrip("0").rstrip(".") + " ",
+            annotation_position="right",
+            annotation_font=dict(color="white", size=11),
+            annotation_bgcolor=_pcol, row=1, col=1)
+
+        # -- Small prediction arrow that sits just ABOVE the latest candle and
+        #    follows it up/down as the price moves (never covers the candle body) --
         if pred["direction"] in ("BUY", "SELL"):
+            last_x = plot_df.index[-1]
+            hi = float(plot_df["High"].iloc[-1])
+            rng = float(plot_df["High"].max() - plot_df["Low"].min()) or 1.0
+            gap = rng * 0.015                      # small gap above the candle
             if pred["direction"] == "BUY":
-                badge, bclr = f"▲ Prediction: BUY {pred['prob_up']}%", "#2ecc71"
+                fig.add_annotation(
+                    x=last_x, y=hi + gap, row=1, col=1,
+                    text=f"▲{pred['prob_up']}%",
+                    showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
+                    arrowcolor="#2ecc71", ax=0, ay=-16,
+                    font=dict(color="#2ecc71", size=10),
+                    bgcolor="rgba(0,0,0,0.45)", borderpad=1)
             else:
-                badge, bclr = f"▼ Prediction: SELL {pred['prob_down']}%", "#e74c3c"
-            fig.add_annotation(
-                xref="x domain", yref="y domain", x=0.01, y=0.98,
-                xanchor="left", yanchor="top", text=badge, showarrow=False,
-                font=dict(color="white", size=12), bgcolor=bclr,
-                borderpad=4, opacity=0.92)
+                fig.add_annotation(
+                    x=last_x, y=hi + gap, row=1, col=1,
+                    text=f"▼{pred['prob_down']}%",
+                    showarrow=True, arrowhead=2, arrowsize=0.9, arrowwidth=1.3,
+                    arrowcolor="#e74c3c", ax=0, ay=-16,
+                    font=dict(color="#e74c3c", size=10),
+                    bgcolor="rgba(0,0,0,0.45)", borderpad=1)
 
         # -- overlays on price --
         overlays = []
@@ -490,6 +511,40 @@ with tab_dash:
             df_ai = load_indicator_df(market, symbol, interval)
             sig_ai = generate_signal(df_ai)
             st.info(ai_analysis.analyze(ai_provider, market, symbol, sig_ai, api_key))
+
+# ================================================================== TAB: BINARY
+with tab_binary:
+    st.subheader("🎯 Binary Signal — UP / DOWN for the next candle")
+    st.error("⚠️ **High-risk warning:** Binary options are extremely risky, are "
+             "**banned or restricted** in many countries (EU, UK, etc.), and are full of "
+             "scam brokers. Most people **lose money fast**. This is an EDUCATIONAL "
+             "signal only — not advice to trade binaries and not a guarantee.")
+    st.write(f"Model's call for the **next {TF_LABEL[interval]} candle** on **"
+             f"{SYMBOL_NAMES.get(market, {}).get(symbol, symbol)}** (expiry ≈ one candle):")
+    try:
+        dfb = load_indicator_df(market, symbol, interval)
+        pb = predict_next_candle(dfb)
+    except Exception as e:
+        st.warning(f"Data problem: {e}")
+        pb = None
+    if pb:
+        if pb["direction"] == "BUY":
+            st.success(f"🟢 **CALL / UP** — {pb['prob_up']}% confidence  ·  expiry: {TF_LABEL[interval]}")
+        elif pb["direction"] == "SELL":
+            st.error(f"🔴 **PUT / DOWN** — {pb['prob_down']}% confidence  ·  expiry: {TF_LABEL[interval]}")
+        else:
+            st.warning("🟡 **NO CLEAR SIGNAL** — skip this one. Pros only trade strong setups.")
+        b1, b2 = st.columns(2)
+        b1.metric("🟢 UP (CALL)", f"{pb['prob_up']}%")
+        b2.metric("🔴 DOWN (PUT)", f"{pb['prob_down']}%")
+        st.progress(pb["prob_up"] / 100,
+                    text=f"UP {pb['prob_up']}%  vs  DOWN {pb['prob_down']}%")
+        with st.expander("🔍 Why this call? (reasons)"):
+            for r in pb["reasons"]:
+                st.markdown(f"- {r}")
+    st.info("💡 **Binary tip:** Only consider a trade when the **Overall Verdict**, the "
+            "**Multi-Timeframe** view and this signal all agree — and never chase losses. "
+            "Even then, risk only a tiny amount. The safest 'trade' is often no trade.")
 
 # ================================================================== TAB: STRATEGIES
 with tab_strat:
