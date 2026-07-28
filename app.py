@@ -187,7 +187,8 @@ ai_provider = st.sidebar.selectbox(
 )
 api_key = st.sidebar.text_input(
     f"{ai_analysis.PROVIDERS[ai_provider]['label']} API key", type="password",
-    help="Optional. All signals work without a key. The key stays in your browser only.",
+    help="Optional. All signals work without a key. The key is used server-side only "
+         "for your request — it is never logged, stored, or put in any URL.",
 )
 st.sidebar.caption(f"🔑 Get a free/paid key here: {ai_analysis.PROVIDERS[ai_provider]['key_url']}")
 use_ai = st.sidebar.checkbox("Enable AI analysis", value=False)
@@ -230,7 +231,7 @@ with tab_dash:
     if use_live_chart:
         try:
             _pdf = load_indicator_df(market, symbol, interval)
-            _pr = predict_next_candle(_pdf)
+            _pr = predict_next_candle(_pdf.iloc[:-1] if len(_pdf) > 2 else _pdf)
             if _pr["direction"] == "BUY":
                 _pt, _pc = f"▲ {_pr['prob_up']}%", "#2ecc71"
             elif _pr["direction"] == "SELL":
@@ -250,7 +251,10 @@ with tab_dash:
         from datetime import datetime
         try:
             df = load_indicator_df(market, symbol, interval)
-            sig = generate_signal(df)
+            # Compute signals on the last CLOSED candle (drop the still-forming one)
+            # so the live call matches the backtested accuracy shown to the user.
+            df_c = df.iloc[:-1] if len(df) > 2 else df
+            sig = generate_signal(df_c)
         except Exception as e:
             st.error(f"Problem fetching data: {e}")
             st.info("Is the symbol spelled correctly? Is your internet on? Crypto is the most reliable (BTCUSDT).")
@@ -281,7 +285,7 @@ with tab_dash:
                        "weekends for Gold/Forex/Stocks; Crypto trades 24/7.)")
 
         # ---- OVERALL VERDICT (the single, combined recommendation) ----
-        verdict = overall_verdict(df)
+        verdict = overall_verdict(df_c)
         vact = verdict["action"]
         vemoji = {"BUY": "🟢", "SELL": "🔴", "WAIT": "🟡"}[vact]
         vlabel = {"BUY": "BUY (bias up)", "SELL": "SELL (bias down)",
@@ -302,7 +306,7 @@ with tab_dash:
                            "It is an educational estimate, not a guarantee — always use a stop-loss.")
 
         # ---- MARKET DIRECTION (next few candles) + honest track record ----
-        mdir = market_direction(df)
+        mdir = market_direction(df_c)
         demoji = {"UP": "🟢", "DOWN": "🔴", "SIDEWAYS": "🟡"}[mdir["direction"]]
         dtext = {"UP": "Market likely to go UP", "DOWN": "Market likely to go DOWN",
                  "SIDEWAYS": "Sideways / no clear direction"}[mdir["direction"]]
@@ -362,7 +366,7 @@ with tab_dash:
                 play_alert_sound()
 
         # ---- Next Candle Prediction (direction of the next candle) ----
-        pred = predict_next_candle(df)
+        pred = predict_next_candle(df_c)
         st.markdown("### 🔮 Next Candle Prediction")
         pdir = pred["direction"]
         pcolor = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}[pdir]
@@ -515,7 +519,7 @@ with tab_dash:
                             config={"scrollZoom": True, "displaylogo": False})
 
         # ---- Candlestick patterns (auto-detect) ----
-        pats = detect_patterns(df)
+        pats = detect_patterns(df_c)
         st.markdown("**🕯️ Candlestick Patterns:** " + bias_summary(pats))
         if pats:
             pc = st.columns(min(len(pats), 3))
@@ -601,7 +605,7 @@ with tab_binary:
              f"{SYMBOL_NAMES.get(market, {}).get(symbol, symbol)}** (expiry ≈ one candle):")
     try:
         dfb = load_indicator_df(market, symbol, interval)
-        pb = predict_next_candle(dfb)
+        pb = predict_next_candle(dfb.iloc[:-1] if len(dfb) > 2 else dfb)
     except Exception as e:
         st.warning(f"Data problem: {e}")
         pb = None
@@ -785,7 +789,7 @@ with tab_paper:
                             help="BUY = profit when price rises. SELL = profit when price falls.")
         entry = f2.number_input("Entry price", value=float(live_now) if live_now else 100.0,
                                 min_value=0.0, format="%.4f")
-        units = f3.number_input("Units (quantity)", value=1.0, min_value=0.0, format="%.6f")
+        units = f3.number_input("Units (quantity)", value=1.0, min_value=0.0001, format="%.6f")
         g1, g2 = st.columns(2)
         sl = g1.number_input("Stop-Loss (optional)", value=0.0, min_value=0.0, format="%.4f")
         tp = g2.number_input("Take-Profit (optional)", value=0.0, min_value=0.0, format="%.4f")

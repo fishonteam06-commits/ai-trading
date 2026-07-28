@@ -51,6 +51,9 @@ def generate_signal(df: pd.DataFrame) -> dict:
     Builds a signal from the indicators of the latest candle.
     Return: dict containing action, score, and reasons.
     """
+    if df is None or len(df) == 0:
+        return {"action": "HOLD", "score": 0, "bullish_points": 0,
+                "bearish_points": 0, "price": 0.0, "reasons": ["No data."]}
     last = df.iloc[-1]
     reasons = []
     bullish = 0   # points for an upward move
@@ -111,7 +114,9 @@ def generate_signal(df: pd.DataFrame) -> dict:
 
     # --- Final decision ---
     total = bullish + bearish
-    score = 0 if total == 0 else round(abs(bullish - bearish) / total * 100)
+    # Score by MAGNITUDE (out of ~6 possible points), not just the ratio — so a
+    # thin 2-of-2 agreement doesn't misleadingly read as 100% strength.
+    score = min(100, round(abs(bullish - bearish) / 6 * 100))
 
     if bullish > bearish + 1:
         action = "BUY"

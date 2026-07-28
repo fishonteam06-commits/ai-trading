@@ -56,12 +56,15 @@ def overall_verdict(df) -> dict:
 
     # 3) Multi-strategy confluence (weight = number of agreeing strategies)
     strat = run_all_strategies(df)
+    # Cap the strategy weight at 2 — several strategies reuse the same indicators
+    # (MACD, MA, RSI) that the technical signal & prediction already count, so an
+    # uncapped vote would triple-count one underlying edge and inflate confidence.
     if strat["consensus"] == "BUY":
-        buy += strat["buys"]
+        buy += min(strat["buys"], 2)
         components.append(("Strategy confluence", "BUY",
                            f"{strat['buys']}/{strat['total']} strategies"))
     elif strat["consensus"] == "SELL":
-        sell += strat["sells"]
+        sell += min(strat["sells"], 2)
         components.append(("Strategy confluence", "SELL",
                            f"{strat['sells']}/{strat['total']} strategies"))
     else:

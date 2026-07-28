@@ -28,7 +28,11 @@ def render_live_chart(binance_symbol: str, interval: str, height: int = 560,
         "predText": pred_text,
         "predColor": pred_color,
     }
-    html = _TEMPLATE.replace("__CFG__", json.dumps(cfg)).replace("__CDN__", _PLOTLY_CDN)
+    # Escape </script> and angle brackets so a crafted symbol can't break out of
+    # the inline <script> (json.dumps alone does NOT escape < > /). Security fix.
+    safe_cfg = (json.dumps(cfg).replace("<", "\\u003c")
+                .replace(">", "\\u003e").replace("/", "\\/"))
+    html = _TEMPLATE.replace("__CFG__", safe_cfg).replace("__CDN__", _PLOTLY_CDN)
     components.html(html, height=height + 56)
 
 

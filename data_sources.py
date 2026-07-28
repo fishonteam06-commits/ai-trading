@@ -60,8 +60,11 @@ def is_realtime(market: str, symbol: str) -> bool:
 
 def binance_symbol_for(market: str, symbol: str) -> str | None:
     """The Binance trading pair for this symbol (for the live client-side chart),
-    or None if it isn't a Binance-sourced symbol."""
-    s = (symbol or "").strip().upper()
+    or None if it isn't a Binance-sourced symbol. Sanitizes first (security)."""
+    try:
+        s = sanitize_symbol(symbol)          # blocks injection / bad input
+    except Exception:
+        return None
     if s in _BINANCE_PROXY:
         return _BINANCE_PROXY[s]
     if market.lower() == "crypto":
@@ -217,6 +220,15 @@ def _get_yahoo(symbol: str, interval: str, limit: int) -> pd.DataFrame:
     result = data[keep].dropna(subset=["Close"])
     if result.empty:
         raise RuntimeError(f"No usable data for '{symbol}'.")
+
+    # Yahoo has no native 4h — we fetch 1h and resample to real 4h candles,
+    # so the timeframe matches the label (instead of silently showing 1h data).
+    if interval == "4h" and not result.empty:
+        result = result.resample("4h").agg(
+            {"Open": "first", "High": "max", "Low": "min",
+             "Close": "last", "Volume": "sum"}
+        ).dropna(subset=["Close"])
+
     return result.tail(limit)
 
 
