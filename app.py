@@ -26,7 +26,8 @@ from livechart import render_live_chart
 from indicators import add_all_indicators, support_resistance, fibonacci_levels
 from signals import generate_signal, multi_timeframe_signal
 from patterns import detect_patterns, bias_summary
-from predictor import predict_next_candle, prediction_accuracy
+from predictor import (predict_next_candle, prediction_accuracy, market_direction,
+                       market_direction_accuracy, recent_direction_calls)
 from strategies import run_all_strategies
 from verdict import overall_verdict
 import wisdom
@@ -49,6 +50,14 @@ def load_indicator_df(market: str, symbol: str, interval: str):
 def get_prediction_accuracy(market: str, symbol: str, interval: str):
     """Historical hit-rate of the next-candle prediction (cached ~5 min)."""
     return prediction_accuracy(load_indicator_df(market, symbol, interval))
+
+
+@st.cache_data(ttl=300, show_spinner=False, max_entries=32)
+def get_market_direction_stats(market: str, symbol: str, interval: str):
+    """Backtested accuracy + recent track record of the market-direction call."""
+    df = load_indicator_df(market, symbol, interval)
+    return {"acc": market_direction_accuracy(df, horizon=3),
+            "recent": recent_direction_calls(df, horizon=3, count=10)}
 
 
 def play_alert_sound():
@@ -291,6 +300,48 @@ with tab_dash:
                 st.caption("This blends the technical signal, next-candle prediction, "
                            "6-strategy confluence, and candlestick patterns into one call. "
                            "It is an educational estimate, not a guarantee — always use a stop-loss.")
+
+        # ---- MARKET DIRECTION (next few candles) + honest track record ----
+        mdir = market_direction(df)
+        demoji = {"UP": "🟢", "DOWN": "🔴", "SIDEWAYS": "🟡"}[mdir["direction"]]
+        dtext = {"UP": "Market likely to go UP", "DOWN": "Market likely to go DOWN",
+                 "SIDEWAYS": "Sideways / no clear direction"}[mdir["direction"]]
+        with st.container(border=True):
+            st.markdown(f"### 📊 Market Direction: {demoji} {dtext}")
+            st.progress(mdir["prob_up"] / 100,
+                        text=f"Up {mdir['prob_up']}%  ·  Down {mdir['prob_down']}%  "
+                             f"·  confidence {mdir['confidence']}%")
+            try:
+                stats = get_market_direction_stats(market, symbol, interval)
+            except Exception:
+                stats = {"acc": {"total": 0}, "recent": []}
+            acc = stats["acc"]
+            if acc.get("total"):
+                a = acc["accuracy"]
+                mc1, mc2 = st.columns([1, 2])
+                mc1.metric("📈 Past accuracy (this market/timeframe)",
+                           f"{a}%", f"{acc['hits']}/{acc['total']} correct")
+                # recent track record as a compact ✓/✗ strip
+                marks = " ".join("✅" if r["correct"] else "❌" for r in stats["recent"])
+                mc2.markdown("**Recent calls (newest → oldest):**")
+                mc2.markdown(marks if marks else "—")
+                if a >= 55:
+                    st.caption("Directional edge has been slightly better than a coin flip here. "
+                               "Still not a guarantee — use a stop-loss.")
+                else:
+                    st.caption("⚠️ Honest note: accuracy here is around a coin flip (~50%). "
+                               "Short-term direction is very hard to predict for ANYONE. "
+                               "Use this as ONE input, never as a sure thing.")
+                with st.expander("📜 See the last calls in detail"):
+                    if stats["recent"]:
+                        rows = [{"When": r["when"], "Predicted": r["predicted"],
+                                 "Actual": r["actual"],
+                                 "Result": "✅ correct" if r["correct"] else "❌ wrong",
+                                 "Price then": r["price_then"], "Price after": r["price_after"]}
+                                for r in stats["recent"]]
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            for r in mdir["reasons"][:4]:
+                st.markdown(f"- {r}")
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Price (live)", f"{price:,.4f}".rstrip("0").rstrip("."), f"{change_pct:+.2f}%")

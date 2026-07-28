@@ -21,6 +21,151 @@ capital on it. Always use a stop-loss.
 import pandas as pd
 
 
+def market_direction(df: pd.DataFrame, horizon: int = 3) -> dict:
+    """
+    Overall MARKET direction over the next few candles (a trend/momentum read,
+    not a single-candle guess). Trends tend to persist, so this is more reliable
+    than next-candle prediction.
+    Returns: {direction: 'UP'/'DOWN'/'SIDEWAYS', prob_up, prob_down, confidence, reasons}
+    """
+    if len(df) < 55:
+        return {"direction": "SIDEWAYS", "prob_up": 50, "prob_down": 50,
+                "confidence": 0, "reasons": ["Not enough data."]}
+
+    last = df.iloc[-1]
+    up = 0.0
+    down = 0.0
+    reasons = []
+    close = float(last["Close"])
+    ema9, ema21, sma50 = last.get("EMA9"), last.get("EMA21"), last.get("SMA50")
+
+    # 1) Trend alignment (the core of the direction call)
+    if pd.notna(ema9) and pd.notna(ema21) and pd.notna(sma50):
+        if ema9 > ema21 > sma50:
+            up += 2.5
+            reasons.append("🟢 Strong uptrend — fast, medium & slow averages stacked up.")
+        elif ema9 < ema21 < sma50:
+            down += 2.5
+            reasons.append("🔴 Strong downtrend — averages stacked down.")
+        elif ema9 > ema21:
+            up += 1
+            reasons.append("🟢 Short-term momentum is up.")
+        else:
+            down += 1
+            reasons.append("🔴 Short-term momentum is down.")
+
+    # 2) Slope of the medium average (is the trend still pushing?)
+    if pd.notna(ema21) and len(df) >= 6:
+        ema21_prev = df["EMA21"].iloc[-6]
+        if pd.notna(ema21_prev):
+            if ema21 > ema21_prev:
+                up += 1
+                reasons.append("🟢 Trend line is still rising.")
+            else:
+                down += 1
+                reasons.append("🔴 Trend line is still falling.")
+
+    # 3) Price vs the slow average
+    if pd.notna(sma50):
+        if close > sma50:
+            up += 1
+        else:
+            down += 1
+
+    # 4) MACD momentum
+    macd_v, macd_s = last.get("MACD"), last.get("MACD_SIGNAL")
+    if pd.notna(macd_v) and pd.notna(macd_s):
+        if macd_v > macd_s:
+            up += 1
+        else:
+            down += 1
+
+    # 5) Market structure — higher highs & higher lows (or the opposite)
+    recent = df.tail(10)
+    if len(recent) >= 10:
+        hh = recent["High"].iloc[-1] > recent["High"].iloc[0]
+        hl = recent["Low"].iloc[-1] > recent["Low"].iloc[0]
+        lh = recent["High"].iloc[-1] < recent["High"].iloc[0]
+        ll = recent["Low"].iloc[-1] < recent["Low"].iloc[0]
+        if hh and hl:
+            up += 1
+            reasons.append("🟢 Higher highs & higher lows (healthy uptrend structure).")
+        elif lh and ll:
+            down += 1
+            reasons.append("🔴 Lower highs & lower lows (downtrend structure).")
+
+    total = up + down
+    if total == 0:
+        return {"direction": "SIDEWAYS", "prob_up": 50, "prob_down": 50,
+                "confidence": 0, "reasons": reasons or ["No clear direction."]}
+    prob_up = max(5, min(95, round(up / total * 100)))
+    prob_down = 100 - prob_up
+    if prob_up >= 58:
+        direction = "UP"
+    elif prob_up <= 42:
+        direction = "DOWN"
+    else:
+        direction = "SIDEWAYS"
+    return {"direction": direction, "prob_up": prob_up, "prob_down": prob_down,
+            "confidence": max(prob_up, prob_down), "reasons": reasons}
+
+
+def market_direction_accuracy(df: pd.DataFrame, horizon: int = 3, lookback: int = 120) -> dict:
+    """
+    Honest backtest of market_direction: did the price actually move that way
+    `horizon` candles later? No look-ahead (indicators are causal).
+    """
+    n = len(df)
+    if n < 70:
+        return {"hits": 0, "total": 0, "accuracy": 0, "horizon": horizon}
+    start = max(55, n - lookback)
+    closes = df["Close"].values
+    hits = 0
+    total = 0
+    for i in range(start, n - horizon):
+        d = market_direction(df.iloc[: i + 1], horizon)
+        if d["direction"] == "SIDEWAYS":
+            continue
+        actual_up = closes[i + horizon] > closes[i]
+        pred_up = d["direction"] == "UP"
+        if pred_up == actual_up:
+            hits += 1
+        total += 1
+    return {"hits": hits, "total": total,
+            "accuracy": round(hits / total * 100, 1) if total else 0,
+            "horizon": horizon}
+
+
+def recent_direction_calls(df: pd.DataFrame, horizon: int = 3, count: int = 10) -> list:
+    """
+    The most recent past market-direction calls WITH their outcome, so users can
+    see the real track record. Returns newest-first list of:
+      {when, predicted, actual, correct, price_then, price_after}
+    """
+    n = len(df)
+    out = []
+    if n < 60 + horizon:
+        return out
+    idx = df.index
+    closes = df["Close"].values
+    i = n - 1 - horizon
+    while i >= 55 and len(out) < count:
+        d = market_direction(df.iloc[: i + 1], horizon)
+        if d["direction"] != "SIDEWAYS":
+            actual_up = closes[i + horizon] > closes[i]
+            pred_up = d["direction"] == "UP"
+            out.append({
+                "when": str(idx[i])[:16],
+                "predicted": d["direction"],
+                "actual": "UP" if actual_up else "DOWN",
+                "correct": (pred_up == actual_up),
+                "price_then": round(float(closes[i]), 4),
+                "price_after": round(float(closes[i + horizon]), 4),
+            })
+        i -= 1
+    return out
+
+
 def prediction_accuracy(df: pd.DataFrame, lookback: int = 120) -> dict:
     """
     Honest backtest: for each recent candle, run the predictor on the data up to
