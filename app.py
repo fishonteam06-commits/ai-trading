@@ -754,11 +754,22 @@ with tab_paper:
     st.write("Log your practice trades here. The tool will track your profit/loss and win-rate. "
              "Learn to win here for **1 month** first, THEN use real money.")
 
-    # -- portfolio summary --
+    # -- Live chart for the current symbol (so you can watch price while trading) --
+    _pb_paper = binance_symbol_for(market, symbol)
+    if _pb_paper:
+        with st.expander(f"📈 Live chart — {symbol} (real-time)", expanded=True):
+            render_live_chart(_pb_paper, interval)
+    else:
+        st.caption("📈 Live chart is available for Crypto and Gold (XAUUSD). For this symbol, "
+                   "see the Dashboard tab's chart.")
+
+    # -- portfolio summary (clear profit/loss) --
     s = portfolio.summary()
+    tot = s["total_pnl"]
+    st.markdown(f"### 💰 Total Profit/Loss: {'🟢' if tot > 0 else ('🔴' if tot < 0 else '⚪')} "
+                f"${tot:,.2f}  ({'PROFIT' if tot > 0 else ('LOSS' if tot < 0 else 'flat')})")
     m1, m2, m3, m4 = st.columns(4)
-    pnl_color = "normal" if s["total_pnl"] == 0 else ("off" if s["total_pnl"] < 0 else "normal")
-    m1.metric("Total P&L (practice)", f"${s['total_pnl']:,.2f}")
+    m1.metric("Total P&L", f"${tot:,.2f}", delta=(f"{tot:+,.2f}" if tot else None))
     m2.metric("Win Rate", f"{s['win_rate']}%", f"{s['wins']}W / {s['losses']}L")
     m3.metric("Closed trades", s["total_trades"])
     m4.metric("Open trades", s["open_trades"])
@@ -797,16 +808,22 @@ with tab_paper:
         for t in open_trades:
             cur = get_live_price(t["market"], t["symbol"]) or t["entry"]
             upnl = portfolio.unrealized_pnl(t, cur)
-            emoji = "🟢" if upnl >= 0 else "🔴"
-            cc = st.columns([3, 2, 2, 2, 2])
-            cc[0].markdown(f"**#{t['id']} {t['side']} {t['symbol']}**  \n{t['units']} units @ {t['entry']}")
-            cc[1].metric("Current price", f"{cur:,.4f}".rstrip("0").rstrip("."))
-            cc[2].metric("Live P&L", f"{emoji} ${upnl:,.2f}")
-            cc[3].caption(f"SL: {t['stop_loss'] or '—'}\n\nTP: {t['take_profit'] or '—'}")
-            if cc[4].button("Close", key=f"close_{t['id']}"):
-                closed = portfolio.close_trade(t["id"], cur)
-                st.success(f"Trade #{t['id']} closed. P&L: ${closed['pnl']}")
-                st.rerun()
+            cost = (t["entry"] * t["units"]) or 1
+            pnl_pct = upnl / cost * 100
+            emoji = "🟢" if upnl > 0 else ("🔴" if upnl < 0 else "⚪")
+            state = "PROFIT" if upnl > 0 else ("LOSS" if upnl < 0 else "flat")
+            with st.container(border=True):
+                cc = st.columns([3, 2, 3, 2])
+                cc[0].markdown(f"**#{t['id']} {t['side']} {t['symbol']}**  \n"
+                               f"{t['units']} units @ {t['entry']}")
+                cc[1].metric("Now", f"{cur:,.4f}".rstrip("0").rstrip("."))
+                cc[2].metric(f"{emoji} P&L ({state})", f"${upnl:,.2f}", f"{pnl_pct:+.2f}%")
+                cc[3].caption(f"SL: {t['stop_loss'] or '—'}\n\nTP: {t['take_profit'] or '—'}")
+                if cc[3].button("💵 Close now", key=f"close_{t['id']}"):
+                    closed = portfolio.close_trade(t["id"], cur)
+                    r = "PROFIT 🟢" if closed["pnl"] > 0 else ("LOSS 🔴" if closed["pnl"] < 0 else "flat")
+                    st.success(f"Trade #{t['id']} closed → ${closed['pnl']:,.2f} ({r})")
+                    st.rerun()
 
     # -- closed trades --
     st.markdown("#### ✅ Closed trades — history")
